@@ -1,4 +1,4 @@
-package peer
+package gossiper
 
 import "fmt"
 
@@ -22,13 +22,13 @@ func (g *Gossiper) String() string {
 	s += "Peers:"
 
 	if len(g.Peers) == 0 {
-		s += " no peer"
+		s += " no peers"
 	} else {
 		s += "\n"
 		for i, peer := range g.Peers {
-			if i != len(g.Peers)-1{
+			if i != len(g.Peers)-1 {
 				s += "- " + peer + "\n"
-			}else{
+			} else {
 				s += "- " + peer
 			}
 
