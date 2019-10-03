@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/rferreir/Peerster/gossiper"
+	"github.com/somecookie/Peerster/gossiper"
 	"strings"
 )
 
@@ -17,10 +17,10 @@ var (
 
 func init() {
 	flag.StringVar(&uiPort, "UIPort", "8080", "port for the UI client (default \"8080\")")
-	flag.StringVar(&gossipAddr, "gossipAddr", "127.0.0.1:5000", "ip:port for the g (default \"127.0.0.1:5000\"")
+	flag.StringVar(&gossipAddr, "gossipAddr", "127.0.0.1:5000", "ip:port for the gossiper (default \"127.0.0.1:5000\"")
 	flag.StringVar(&name, "name", "default", "name of the gossiper")
 	peersStr := flag.String("peers", "", "comma separated list of peers of the form ip:port")
-	flag.BoolVar(&simple, "simple", false, "run g in simple broadcast mode")
+	flag.BoolVar(&simple, "simple", false, "run gossiper in simple broadcast mode")
 	flag.Parse()
 
 	peers = strings.Split(*peersStr, ",")
@@ -28,9 +28,6 @@ func init() {
 	if len(peers) == 1 && peers[0] == ""{
 		peers = make([]string,0)
 	}
-
-
-
 
 }
 
