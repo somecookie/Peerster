@@ -1,10 +1,10 @@
 package main
 
 import (
+	"Peerster/helper"
+	"Peerster/packet"
 	"flag"
 	"github.com/dedis/protobuf"
-	"github.com/somecookie/Peerster/helper"
-	"github.com/somecookie/Peerster/packet"
 	"log"
 	"net"
 )
@@ -21,7 +21,6 @@ func init() {
 	flag.StringVar(&msg, "msg", "", "message to be sent")
 	flag.Parse()
 	gossiperAddr = "127.0.0.1:" + uiPort
-	clientAddr = ":5000"
 }
 
 func main() {
@@ -34,7 +33,7 @@ func main() {
 
 // sendPacket sends the previously created packet.
 func sendPacket(conn *net.UDPConn, packetBytes []byte, udpAddr *net.UDPAddr) {
-	i, err := conn.WriteToUDP(packetBytes, udpAddr)
+	i, err := conn.Write(packetBytes)
 	if err != nil {
 		helper.HandleCrashingErr(err)
 	} else if len(packetBytes) != i {
@@ -64,7 +63,7 @@ func connectUDP() (*net.UDPAddr, *net.UDPConn) {
 	if err != nil {
 		helper.HandleCrashingErr(err)
 	}
-	conn, err := net.ListenUDP("udp4", udpAddr)
+	conn, err := net.DialUDP("udp4", nil, udpAddr)
 	if err != nil {
 		helper.HandleCrashingErr(err)
 	}

@@ -10,14 +10,14 @@ func HandleCrashingErr(err error){
 	panic(err)
 }
 
-//AddressResolutionError is an error that should be thrown when network address cannot be resolved.
-type AddressResolutionError struct {
-	errorMessage string
-	where        string
+//IllegalArgumentError is an error that should be thrown when illegal arguments are passed to a function/program.
+type IllegalArgumentError struct {
+	ErrorMessage string
+	Where        string
 }
 
-func (e *AddressResolutionError) Error() string {
-	return getErrorString("AddressResolutionError", e.where, e.errorMessage)
+func (e *IllegalArgumentError) Error() string {
+	return getErrorString("AddressResolutionError", e.Where, e.ErrorMessage)
 }
 
 //-------------------------------------------------------------------------------------
