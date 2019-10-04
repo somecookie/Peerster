@@ -4,7 +4,6 @@ import (
 	"Peerster/helper"
 	"Peerster/packet"
 	"flag"
-	"github.com/dedis/protobuf"
 	"log"
 	"net"
 )
@@ -19,15 +18,22 @@ var (
 func init() {
 	flag.StringVar(&uiPort, "UIPort", "8080", "port for the UI client (default \"8080\")")
 	flag.StringVar(&msg, "msg", "", "message to be sent")
+	flag.StringVar(&gossiperAddr, "gossipAddr", "127.0.0.1", "ip address of the gossiper")
 	flag.Parse()
-	gossiperAddr = "127.0.0.1:" + uiPort
+	gossiperAddr += ":"+uiPort
 }
 
 func main() {
-
 	udpAddr, conn := connectUDP()
 	defer conn.Close()
-	packetBytes := getPacketBytes()
+	packetToSend := packet.GossipPacket{Simple: &packet.SimpleMessage{
+		OriginalName:  "",
+		RelayPeerAddr: "",
+		Contents:      msg,
+	}}
+
+	packetBytes, err := packet.GetPacketBytes(&packetToSend)
+	helper.HandleCrashingErr(err)
 	sendPacket(conn, packetBytes, udpAddr)
 }
 
@@ -41,22 +47,7 @@ func sendPacket(conn *net.UDPConn, packetBytes []byte, udpAddr *net.UDPAddr) {
 	}
 }
 
-// getPacketBytes create and serialize the SimpleMessage that will be sent by the client.
-func getPacketBytes() []byte {
-	simpleMessage := &packet.SimpleMessage{
-		OriginalName:  "",
-		RelayPeerAddr: "",
-		Contents:      msg,
-	}
-	packetBytes, err := protobuf.Encode(simpleMessage)
-	if err != nil {
-		helper.HandleCrashingErr(err)
-	}
-
-	return packetBytes
-}
-
-//connectUDP connects to the gossiper through UDP.
+//connectUDP connects to the gossip through UDP.
 // It returns the resolved address used for UDP and the connection.
 func connectUDP() (*net.UDPAddr, *net.UDPConn) {
 	udpAddr, err := net.ResolveUDPAddr("udp4", gossiperAddr)
