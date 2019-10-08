@@ -4,7 +4,6 @@ import (
 	"Peerster/helper"
 	"Peerster/packet"
 	"fmt"
-	"github.com/dedis/protobuf"
 	"net"
 	"strings"
 	"sync"
@@ -71,9 +70,7 @@ func (g *Gossiper) HandleUDPClient(group *sync.WaitGroup) {
 		helper.LogError(err)
 
 		if err == nil {
-			receivedPacket := &packet.GossipPacket{}
-			err := protobuf.Decode(buffer[:n], receivedPacket)
-			helper.LogError(err)
+			receivedPacket, err  := packet.GetGossipPacket(buffer, n)
 			if err == nil {
 				g.handleClientSimpleMessage(receivedPacket)
 			}
@@ -117,9 +114,7 @@ func (g *Gossiper) HandleUPDGossiper(group *sync.WaitGroup) {
 	for {
 		n, peerAddr, err := g.connGossip.ReadFromUDP(buffer)
 		if err == nil {
-			receivedPacket := &packet.GossipPacket{}
-			err := protobuf.Decode(buffer[:n], receivedPacket)
-			helper.LogError(err)
+			receivedPacket, err := packet.GetGossipPacket(buffer, n)
 
 			if err == nil {
 				g.peers[receivedPacket.Simple.RelayPeerAddr] = peerAddr
@@ -131,7 +126,6 @@ func (g *Gossiper) HandleUPDGossiper(group *sync.WaitGroup) {
 
 func (g *Gossiper) handleGossiperSimpleMessage(receivedPacket *packet.GossipPacket) {
 	message := receivedPacket.Simple
-	//SIMPLE MESSAGE origin E from 127.0.0.1:$relayPort contents $message
 	fmt.Printf("SIMPLE MESSAGE origin %s from %s contents %s\n", message.OriginalName, message.RelayPeerAddr, message.Contents)
 	peerAddr := g.peers[message.RelayPeerAddr]
 	var peersStr string = ""
