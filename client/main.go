@@ -26,13 +26,7 @@ func init() {
 func main() {
 	udpAddr, conn := connectUDP()
 	defer conn.Close()
-	packetToSend := packet.GossipPacket{Simple: &packet.SimpleMessage{
-		OriginalName:  "",
-		RelayPeerAddr: "",
-		Contents:      msg,
-	}}
-
-	packetBytes, err := packet.GetPacketBytes(&packetToSend)
+	packetBytes, err := packet.GetPacketBytes(&packet.Message{Text:msg})
 	helper.HandleCrashingErr(err)
 	sendPacket(conn, packetBytes, udpAddr)
 }

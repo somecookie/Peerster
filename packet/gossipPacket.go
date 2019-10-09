@@ -9,12 +9,12 @@ import (
 //In a GossipPack, one and only one field should be non-nil
 type GossipPacket struct {
 	Simple *SimpleMessage
-	Rumor *RumorMessage
+	Rumor  *RumorMessage
 	Status *StatusPacket
 }
 
 //GetPacketBytes serializes the GossipPacket message
-func GetPacketBytes(message *GossipPacket) ([]byte, error) {
+func GetPacketBytes(message interface{}) ([]byte, error) {
 	packetBytes, err := protobuf.Encode(message)
 	if err != nil {
 		helper.LogError(err)
@@ -27,10 +27,9 @@ func GetPacketBytes(message *GossipPacket) ([]byte, error) {
 func GetGossipPacket(buffer []byte, n int) (*GossipPacket, error) {
 	receivedPacket := &GossipPacket{}
 	err := protobuf.Decode(buffer[:n], receivedPacket)
-	if err != nil{
+	if err != nil {
 		helper.LogError(err)
 		return nil, err
 	}
 	return receivedPacket, err
 }
-

@@ -12,7 +12,7 @@ import (
 var g *gossip.Gossiper
 
 func init() {
-	uiPort := flag.String( "UIPort", "8080", "port for the UI client (default \"8080\")")
+	uiPort := flag.String("UIPort", "8080", "port for the UI client (default \"8080\")")
 	gossipAddr := flag.String("gossipAddr", "127.0.0.1:5000", "ip:port for the gossip (default \"127.0.0.1:5000\"")
 	name := flag.String("name", "default", "name of the gossip")
 	peersStr := flag.String("peers", "", "comma separated list of peers of the form ip:port")
@@ -29,21 +29,21 @@ func handleFlags(peersStr string, gossipAddr string, uiPort string, name string,
 	helper.HandleCrashingErr(err)
 }
 
-func getPeersAddr(peersStr, gossipAddr string) map[string]*net.UDPAddr {
+func getPeersAddr(peersStr, gossipAddr string) []*net.UDPAddr {
 	tab := strings.Split(peersStr, ",")
 
-	peers := make(map[string]*net.UDPAddr)
+	peers := make([]*net.UDPAddr, len(tab))
 	if len(tab) == 1 && tab[0] == "" {
 		return peers
 	}
 
-	for _, addr := range tab{
-		if addr == gossipAddr{
+	for _, addr := range tab {
+		if addr == gossipAddr {
 			continue
 		}
 		udpAddr, err := net.ResolveUDPAddr("udp4", addr)
-		if err == nil{
-			peers[addr] = udpAddr
+		if err == nil {
+			peers = append(peers, udpAddr)
 		}
 	}
 
@@ -57,5 +57,3 @@ func main() {
 	go g.HandleUPDGossiper(&waitGroup)
 	waitGroup.Wait()
 }
-
-
