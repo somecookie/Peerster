@@ -2,6 +2,7 @@ package packet
 
 import (
 	"Peerster/helper"
+	"fmt"
 	"github.com/dedis/protobuf"
 )
 
@@ -18,4 +19,8 @@ func GetMessage(buffer []byte, n int) (*Message, error) {
 		return nil, err
 	}
 	return receivedPacket, err
+}
+
+func OutputMessage(message *Message) {
+	fmt.Printf("CLIENT MESSAGE %s\n", message.Text)
 }

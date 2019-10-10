@@ -32,7 +32,7 @@ func handleFlags(peersStr string, gossipAddr string, uiPort string, name string,
 func getPeersAddr(peersStr, gossipAddr string) []*net.UDPAddr {
 	tab := strings.Split(peersStr, ",")
 
-	peers := make([]*net.UDPAddr, len(tab))
+	peers := make([]*net.UDPAddr,0)
 	if len(tab) == 1 && tab[0] == "" {
 		return peers
 	}

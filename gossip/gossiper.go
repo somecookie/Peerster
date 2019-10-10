@@ -11,13 +11,14 @@ import (
 )
 
 type Gossiper struct {
-	gossipAddr  string
-	name        string
-	peers       []*net.UDPAddr
-	simple      bool
-	connClient  *net.UDPConn
-	connGossip  *net.UDPConn
-	vectorClock map[string]uint32
+	gossipAddr string
+	name       string
+	peers      []*net.UDPAddr
+	simple     bool
+	connClient *net.UDPConn
+	connGossip *net.UDPConn
+	rumorState packet.RumorState
+	counter    uint32
 }
 
 //BasicGossiperFactory creates a Gossiper from the parsed flags of main.go.
@@ -52,17 +53,22 @@ func BasicGossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr,
 		return nil, err
 	}
 
-	vectorClock := make(map[string]uint32)
-	vectorClock[name] = 0
+	vectorClock := make([]packet.PeerStatus, 0)
+	archivedMessage := make(map[string]map[uint32]*packet.RumorMessage)
+	rumorState := packet.RumorState{
+		VectorClock:      vectorClock,
+		ArchivedMessages: archivedMessage,
+	}
 
 	return &Gossiper{
-		gossipAddr:  gossipAddr,
-		name:        name,
-		peers:       peers,
-		simple:      simple,
-		connClient:  udpConnClient,
-		connGossip:  udpConnGossip,
-		vectorClock: vectorClock,
+		gossipAddr: gossipAddr,
+		name:       name,
+		peers:      peers,
+		simple:     simple,
+		connClient: udpConnClient,
+		connGossip: udpConnGossip,
+		rumorState: rumorState,
+		counter: 0,
 	}, nil
 }
 
@@ -111,8 +117,7 @@ func (g *Gossiper) HandleUPDGossiper(group *sync.WaitGroup) {
 			receivedPacket, err := packet.GetGossipPacket(buffer, n)
 
 			if err == nil {
-				//g.peers[peerAddr.String()] = peerAddr
-				if !g.isPeer(peerAddr){
+				if !g.isPeer(peerAddr) {
 					g.peers = append(g.peers, peerAddr)
 				}
 				g.handleGossipPacket(receivedPacket, peerAddr)
@@ -120,21 +125,67 @@ func (g *Gossiper) HandleUPDGossiper(group *sync.WaitGroup) {
 		}
 	}
 }
-func (g *Gossiper) ListPeers(){
+
+//ListPeers output the message that lists all the peers
+func (g *Gossiper) ListPeers() {
 	str := ""
-	for _, peer := range g.peers{
-		str += peer.String()+","
+	for _, peer := range g.peers {
+		str += peer.String() + ","
 	}
 	fmt.Printf("PEERS %s\n", str[:len(str)-1])
 }
 
-func (g *Gossiper) isPeer(peerAddr *net.UDPAddr) bool{
-	for _,addr := range g.peers{
-		if addr.String() == peerAddr.String(){
+//isPeer checks if a given address is already in the list of peers
+func (g *Gossiper) isPeer(peerAddr *net.UDPAddr) bool {
+	if peerAddr.String() == g.gossipAddr {
+		return false
+	}
+
+	for _, addr := range g.peers {
+		if addr.String() == peerAddr.String() {
 			return true
 		}
 	}
 	return false
 }
 
+func (g *Gossiper) GetNextID(origin string) uint32 {
+	for _, peerStat := range g.rumorState.VectorClock {
+		if peerStat.Identifier == origin {
+			return peerStat.NextID
+		}
+	}
+	return 1
+}
 
+func (g *Gossiper) UpdateVectorClock(origin string, receivedID uint32) {
+	for _, peerStat := range g.rumorState.VectorClock {
+		if peerStat.Identifier == origin {
+			if receivedID == peerStat.NextID {
+				peerStat.NextID++
+			}
+			return
+		}
+	}
+	var nextID uint32
+	if receivedID == 1 {
+		nextID = 2
+	} else {
+		nextID = 1
+	}
+	g.rumorState.VectorClock = append(g.rumorState.VectorClock, packet.PeerStatus{
+		Identifier: origin,
+		NextID:     nextID,
+	})
+}
+
+func (g *Gossiper) UpdateArchive(message *packet.RumorMessage){
+	_,ok := g.rumorState.ArchivedMessages[message.Origin]
+
+	if ok{
+		g.rumorState.ArchivedMessages[message.Origin][message.ID] = message
+	}else{
+		g.rumorState.ArchivedMessages[message.Origin] = make(map[uint32]*packet.RumorMessage)
+		g.rumorState.ArchivedMessages[message.Origin][message.ID] = message
+	}
+}
