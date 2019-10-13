@@ -8,18 +8,20 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Gossiper struct {
-	gossipAddr string
-	name       string
-	peers      []*net.UDPAddr
-	simple     bool
-	connClient *net.UDPConn
-	connGossip *net.UDPConn
-	rumorState packet.RumorState
-	pendingACK PendingACK
-	counter    uint32
+	gossipAddr  string
+	name        string
+	peers       []*net.UDPAddr
+	simple      bool
+	connClient  *net.UDPConn
+	connGossip  *net.UDPConn
+	rumorState  packet.RumorState
+	pendingACK  PendingACK
+	counter     uint32
+	antiEntropy time.Duration
 }
 
 func (g *Gossiper) String() string {
@@ -37,7 +39,7 @@ func (g *Gossiper) String() string {
 }
 
 //BasicGossiperFactory creates a Gossiper from the parsed flags of main.go.
-func BasicGossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simple bool) (*Gossiper, error) {
+func BasicGossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simple bool, antiEntropy int) (*Gossiper, error) {
 
 	ipPort := strings.Split(gossipAddr, ":")
 	if len(ipPort) != 2 {
@@ -82,15 +84,16 @@ func BasicGossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr,
 	}
 
 	return &Gossiper{
-		gossipAddr: gossipAddr,
-		name:       name,
-		peers:      peers,
-		simple:     simple,
-		connClient: udpConnClient,
-		connGossip: udpConnGossip,
-		rumorState: rumorState,
-		pendingACK: pending,
-		counter:    0,
+		gossipAddr:  gossipAddr,
+		name:        name,
+		peers:       peers,
+		simple:      simple,
+		connClient:  udpConnClient,
+		connGossip:  udpConnGossip,
+		rumorState:  rumorState,
+		pendingACK:  pending,
+		counter:     0,
+		antiEntropy: time.Duration(antiEntropy),
 	}, nil
 }
 
@@ -111,8 +114,8 @@ func (g *Gossiper) sendMessage(gossipPacket *packet.GossipPacket, addr *net.UDPA
 
 }
 
-func (g *Gossiper) HandleUDPClient(group *sync.WaitGroup) {
-	defer group.Done()
+func (g *Gossiper) HandleUDPClient() {
+
 	defer g.connClient.Close()
 
 	buffer := make([]byte, 1024)
@@ -129,9 +132,9 @@ func (g *Gossiper) HandleUDPClient(group *sync.WaitGroup) {
 	}
 }
 
-func (g *Gossiper) HandleUPDGossiper(group *sync.WaitGroup) {
-	defer group.Done()
+func (g *Gossiper) HandleUPDGossiper() {
 	defer g.connGossip.Close()
+	go g.AntiEntropyRoutine()
 
 	buffer := make([]byte, 1024)
 	for {
@@ -231,5 +234,18 @@ func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool
 	}
 	packet.OutputOutRumorMessage(peerAddr)
 	go g.WaitForAck(message, peerAddr)
+}
+
+func (g *Gossiper) AntiEntropyRoutine() {
+	ticker := time.NewTicker(g.antiEntropy * time.Second)
+	for{
+		select{
+		case <- ticker.C:
+			peerAddr := g.selectPeerAtRandom()
+			g.rumorState.Mutex.Lock()
+			g.sendStatusPacket(peerAddr)
+			g.rumorState.Mutex.Unlock()
+		}
+	}
 }
 

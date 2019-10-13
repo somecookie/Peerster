@@ -103,25 +103,30 @@ do
 
 	if [[ "$gossipPort" != 5004 ]] ; then
 		if !(grep -Eq "$msgLine1" "${outputFiles[$i]}") ; then
+		grep -E "$msgLine1" "${outputFiles[$i]}"
         	failed="T"
     	fi
 		if !(grep -Eq "$msgLine2" "${outputFiles[$i]}") ; then
-        	failed="T"
+		grep -E "$msgLine2" "${outputFiles[$i]}"
+		failed="T"
     	fi
 	fi
 
 	if [[ "$gossipPort" != 5001 ]] ; then
 		if !(grep -Eq "$msgLine3" "${outputFiles[$i]}") ; then
-        	failed="T"
+		grep -E "$msgLine3" "${outputFiles[$i]}"
+		failed="T"
     	fi
 		if !(grep -Eq "$msgLine4" "${outputFiles[$i]}") ; then
-        	failed="T"
+		grep -E "$msgLine4" "${outputFiles[$i]}"
+		failed="T"
     	fi
 	fi
 	
 	if [[ "$gossipPort" != 5006 ]] ; then
 		if !(grep -Eq "$msgLine5" "${outputFiles[$i]}") ; then
-        	failed="T"
+		grep -E "$msgLine5" "${outputFiles[$i]}"
+		failed="T"
     	fi
 	fi
 	gossipPort=$(($gossipPort+1))

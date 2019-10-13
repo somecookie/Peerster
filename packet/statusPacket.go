@@ -39,8 +39,9 @@ func (r *RumorState) String() string{
 }
 
 func OutputStatusPacket(packet *StatusPacket, peerAddr *net.UDPAddr){
-	s := "STATUS from "+peerAddr.String()
+	s := fmt.Sprintf("STATUS from %s", peerAddr.String())
 	for _, peerStatus := range packet.Want{
+		//peer %s nextID %d
 		s += fmt.Sprintf(" peer %s nextID %d", peerStatus.Identifier, peerStatus.NextID)
 	}
 	fmt.Println(s)

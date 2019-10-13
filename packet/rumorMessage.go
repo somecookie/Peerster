@@ -20,5 +20,6 @@ func OutputInRumorMessage(message *RumorMessage, peerAddr *net.UDPAddr)  {
 }
 
 func (rm *RumorMessage)String() string{
+
 	return fmt.Sprintf("Origin: %s\nID: %d\nText: %s", rm.Origin, rm.ID, rm.Text)
 }

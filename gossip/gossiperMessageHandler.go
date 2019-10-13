@@ -71,9 +71,26 @@ func (g *Gossiper) handleStatusPacket(statusPacket *packet.StatusPacket, peerAdd
 	g.ListPeers()
 
 	peerVector := statusPacket.Want
-	wantMessage := false
 	rumorMessage := g.AckRumors(peerVector, peerAddr)
+	g.rumorState.Mutex.Lock()
 
+	//Check if S has messages that R has not seen yet
+	b, msg := g.HasOther(g.rumorState.VectorClock, peerVector)
+	if b{
+		g.sendMessage(&packet.GossipPacket{Rumor: msg}, peerAddr)
+		g.rumorState.Mutex.Unlock()
+		return
+	}
+	//Check if R has messages that S has not seen yet
+	b, _ = g.HasOther(peerVector, g.rumorState.VectorClock)
+	if b{
+		g.sendStatusPacket(peerAddr)
+		g.rumorState.Mutex.Unlock()
+		return
+	}
+	g.rumorState.Mutex.Unlock()
+
+/*
 	//check if the sender has messages that the receiver has not seen
 	g.rumorState.Mutex.Lock()
 	for _, senderStatus := range g.rumorState.VectorClock {
@@ -99,13 +116,41 @@ func (g *Gossiper) handleStatusPacket(statusPacket *packet.StatusPacket, peerAdd
 		return
 	}
 
-	g.rumorState.Mutex.Unlock()
+	g.rumorState.Mutex.Unlock()*/
+
 
 	packet.OutputInSync(peerAddr)
-	if rand.Int()%2 == 0 {
+	if rand.Int()%2 == 0 && rumorMessage != nil {
 		g.Rumormongering(rumorMessage, true)
 	}
 
+}
+
+//HasOther checks if there are messages in thisVC that are not in thatVC.
+func (g* Gossiper) HasOther(thisVC, thatVC []packet.PeerStatus) (bool, *packet.RumorMessage) {
+	for _, sVC := range thisVC{
+		inOtherVC := false
+		for _, rVC := range thatVC {
+			if sVC.Identifier == rVC.Identifier {
+				inOtherVC = true
+				if sVC.NextID > rVC.NextID {
+					nextID := rVC.NextID
+					origin := rVC.Identifier
+					message := g.rumorState.ArchivedMessages[origin][nextID]
+					return true, message
+
+				}
+			}
+		}
+
+		if !inOtherVC {
+			nextID := uint32(1)
+			origin := sVC.Identifier
+			message := g.rumorState.ArchivedMessages[origin][nextID]
+			return true, message
+		}
+	}
+	return false, nil
 }
 
 //sendStatusPacket sends a StatusPacket to peerAddr that serves as an ACK to the RumorMessage.
