@@ -1,9 +1,9 @@
 package main
 
 import (
-	"Peerster/gossip"
-	"Peerster/helper"
 	"flag"
+	"github.com/somecookie/Peerster/gossip"
+	"github.com/somecookie/Peerster/helper"
 	"net"
 	"strings"
 	"sync"
@@ -52,7 +52,7 @@ func getPeersAddr(peersStr, gossipAddr string) []*net.UDPAddr {
 
 func main() {
 	var waitGroup sync.WaitGroup
-	waitGroup.Add(1)
+	waitGroup.Add(2)
 	go g.HandleUDPClient(&waitGroup)
 	go g.HandleUPDGossiper(&waitGroup)
 	waitGroup.Wait()

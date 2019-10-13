@@ -1,9 +1,9 @@
 package packet
 
 import (
-	"Peerster/helper"
 	"fmt"
 	"github.com/dedis/protobuf"
+	"github.com/somecookie/Peerster/helper"
 )
 
 type Message struct{

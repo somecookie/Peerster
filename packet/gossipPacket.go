@@ -1,8 +1,8 @@
 package packet
 
 import (
-	"Peerster/helper"
 	"github.com/dedis/protobuf"
+	"github.com/somecookie/Peerster/helper"
 )
 
 //GossipPacket is the only type of message sent between the different nodes

@@ -1,9 +1,9 @@
 package main
 
 import (
-	"Peerster/helper"
-	"Peerster/packet"
 	"flag"
+	"github.com/somecookie/Peerster/helper"
+	"github.com/somecookie/Peerster/packet"
 	"log"
 	"net"
 )

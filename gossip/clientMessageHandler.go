@@ -1,32 +1,31 @@
 package gossip
 
 import (
-	"Peerster/packet"
+	"github.com/somecookie/Peerster/packet"
+	"sync/atomic"
 )
 
 //handleMessage is used to handle the messages that come from the client
 func (g *Gossiper) handleMessage(message *packet.Message) {
 	packet.OutputMessage(message)
 	if g.simple {
-		g.sendSimpleMessage(message)
+		go g.sendSimpleMessage(message)
 	} else {
-		g.startRumor(message)
+		go g.startRumor(message)
 	}
 }
 
 //startRumor starts a new rumor when the gossiper receives a message from the client
 func (g *Gossiper) startRumor(message *packet.Message) {
 	if len(g.peers) > 0{
-		g.counter++
+		atomic.AddUint32(&g.counter, 1)
 		rumorMessage := &packet.RumorMessage{
 			Origin: g.name,
 			ID:     g.counter,
 			Text:   message.Text,
 		}
-		packetToSend := &packet.GossipPacket{Rumor: rumorMessage}
-		addr := g.selectPeerAtRandom()
-		packet.OutputOutRumorMessage(addr)
-		g.sendMessage(packetToSend, addr)
+		g.UpdateRumorState(rumorMessage)
+		g.Rumormongering(rumorMessage, false)
 	}
 }
 

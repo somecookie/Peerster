@@ -1,9 +1,9 @@
 package gossip
 
 import (
-	"Peerster/helper"
-	"Peerster/packet"
 	"fmt"
+	"github.com/somecookie/Peerster/helper"
+	"github.com/somecookie/Peerster/packet"
 	"math/rand"
 	"net"
 	"strings"
@@ -18,7 +18,22 @@ type Gossiper struct {
 	connClient *net.UDPConn
 	connGossip *net.UDPConn
 	rumorState packet.RumorState
+	pendingACK PendingACK
 	counter    uint32
+}
+
+func (g *Gossiper) String() string {
+	s := ""
+	s += "Gossip Address: " + g.gossipAddr + "\n"
+	s += "Name: " + g.name + "\n"
+	s += "Peers:\n"
+	for _, p := range g.peers {
+		s += "- " + p.String() + "\n"
+	}
+	s += fmt.Sprintf("Counter: %d\n", g.counter)
+	s += g.rumorState.String() + "\n"
+	s += g.pendingACK.String() + "\n"
+	return s
 }
 
 //BasicGossiperFactory creates a Gossiper from the parsed flags of main.go.
@@ -58,6 +73,12 @@ func BasicGossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr,
 	rumorState := packet.RumorState{
 		VectorClock:      vectorClock,
 		ArchivedMessages: archivedMessage,
+		Mutex:            &sync.Mutex{},
+	}
+
+	pending := PendingACK{
+		ACKS:  make(map[string][]ACK),
+		mutex: sync.Mutex{},
 	}
 
 	return &Gossiper{
@@ -68,7 +89,8 @@ func BasicGossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr,
 		connClient: udpConnClient,
 		connGossip: udpConnGossip,
 		rumorState: rumorState,
-		counter: 0,
+		pendingACK: pending,
+		counter:    0,
 	}, nil
 }
 
@@ -86,6 +108,7 @@ func (g *Gossiper) sendMessage(gossipPacket *packet.GossipPacket, addr *net.UDPA
 		_, err := g.connGossip.WriteToUDP(packetBytes, addr)
 		helper.LogError(err)
 	}
+
 }
 
 func (g *Gossiper) HandleUDPClient(group *sync.WaitGroup) {
@@ -150,6 +173,7 @@ func (g *Gossiper) isPeer(peerAddr *net.UDPAddr) bool {
 }
 
 func (g *Gossiper) GetNextID(origin string) uint32 {
+
 	for _, peerStat := range g.rumorState.VectorClock {
 		if peerStat.Identifier == origin {
 			return peerStat.NextID
@@ -158,34 +182,54 @@ func (g *Gossiper) GetNextID(origin string) uint32 {
 	return 1
 }
 
-func (g *Gossiper) UpdateVectorClock(origin string, receivedID uint32) {
-	for _, peerStat := range g.rumorState.VectorClock {
-		if peerStat.Identifier == origin {
-			if receivedID == peerStat.NextID {
-				peerStat.NextID++
+func (g *Gossiper) UpdateRumorState(message *packet.RumorMessage) {
+	g.updateVectorClock(message)
+	g.updateArchive(message)
+}
+
+func (g *Gossiper) updateVectorClock(message *packet.RumorMessage) {
+	for i, peerStat := range g.rumorState.VectorClock {
+		if peerStat.Identifier == message.Origin {
+			if message.ID == peerStat.NextID {
+				g.rumorState.VectorClock[i].NextID += 1
 			}
 			return
 		}
 	}
 	var nextID uint32
-	if receivedID == 1 {
+	if message.ID == 1 {
 		nextID = 2
 	} else {
 		nextID = 1
 	}
 	g.rumorState.VectorClock = append(g.rumorState.VectorClock, packet.PeerStatus{
-		Identifier: origin,
+		Identifier: message.Origin,
 		NextID:     nextID,
 	})
 }
 
-func (g *Gossiper) UpdateArchive(message *packet.RumorMessage){
-	_,ok := g.rumorState.ArchivedMessages[message.Origin]
+func (g *Gossiper) updateArchive(message *packet.RumorMessage) {
+	_, ok := g.rumorState.ArchivedMessages[message.Origin]
 
-	if ok{
+	if ok {
 		g.rumorState.ArchivedMessages[message.Origin][message.ID] = message
-	}else{
+	} else {
 		g.rumorState.ArchivedMessages[message.Origin] = make(map[uint32]*packet.RumorMessage)
 		g.rumorState.ArchivedMessages[message.Origin][message.ID] = message
 	}
 }
+
+//Rumormongering forwards the given RumorMessage to a randomly selected peer
+//It updates the RumorStatus of g.
+func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool) {
+
+	peerAddr := g.selectPeerAtRandom()
+	g.sendMessage(&packet.GossipPacket{Rumor: message}, peerAddr)
+
+	if flippedCoin {
+		packet.OutputFlippedCoin(peerAddr)
+	}
+	packet.OutputOutRumorMessage(peerAddr)
+	go g.WaitForAck(message, peerAddr)
+}
+
