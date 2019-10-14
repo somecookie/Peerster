@@ -3,26 +3,25 @@ package gossip
 import (
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
-	"math/rand"
 	"net"
 )
 
-func (g *Gossiper) handleGossipPacket(receivedPacket *packet.GossipPacket, peerAddr *net.UDPAddr) {
+func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, peerAddr *net.UDPAddr) {
 
 	if receivedPacket.Rumor != nil {
-		go g.handleRumorMessage(receivedPacket.Rumor, peerAddr)
+		go g.RumorMessageRoutine(receivedPacket.Rumor, peerAddr)
 	} else if receivedPacket.Simple != nil && g.simple {
-		go g.handleSimpleMessage(receivedPacket.Simple, peerAddr)
+		go g.SimpleMessageRoutine(receivedPacket.Simple, peerAddr)
 	} else if receivedPacket.Status != nil {
-		go g.handleStatusPacket(receivedPacket.Status, peerAddr)
+		go g.StatusPacketRoutine(receivedPacket.Status, peerAddr)
 	}
 
 }
 
-//handleSimpleMessage handle the GossipPackets of type SimpleMessage
+//SimpleMessageRoutine handle the GossipPackets of type SimpleMessage
 //It first prints the message and g's peers.
 //Finally it forwards message to all g's peers (except peerAddr)
-func (g *Gossiper) handleSimpleMessage(message *packet.SimpleMessage, peerAddr *net.UDPAddr) {
+func (g *Gossiper) SimpleMessageRoutine(message *packet.SimpleMessage, peerAddr *net.UDPAddr) {
 	packet.OutputSimpleMessage(message)
 	g.ListPeers()
 	message.RelayPeerAddr = g.gossipAddr
@@ -41,10 +40,10 @@ func (g *Gossiper) handleSimpleMessage(message *packet.SimpleMessage, peerAddr *
 
 }
 
-//handleRumorMessage handles the RumorMessage.
+//RumorMessageRoutine handles the RumorMessage.
 //It first prints the message and g's peers. Then it sends an ack to the peer that send the rumor.
 //Finally, if it is a new Rumor g starts Rumormongering
-func (g *Gossiper) handleRumorMessage(message *packet.RumorMessage, peerAddr *net.UDPAddr) {
+func (g *Gossiper) RumorMessageRoutine(message *packet.RumorMessage, peerAddr *net.UDPAddr) {
 	packet.OutputInRumorMessage(message, peerAddr)
 	g.ListPeers()
 	g.rumorState.Mutex.Lock()
@@ -54,103 +53,27 @@ func (g *Gossiper) handleRumorMessage(message *packet.RumorMessage, peerAddr *ne
 		g.UpdateRumorState(message)
 		g.sendStatusPacket(peerAddr)
 		g.rumorState.Mutex.Unlock()
-		g.Rumormongering(message, false)
-	}else{
-		//g.sendStatusPacket(peerAddr)
+		g.Rumormongering(message, false, peerAddr)
+	} else {
+		g.sendStatusPacket(peerAddr)
 		g.rumorState.Mutex.Unlock()
 	}
 }
 
-//handleStatusPacket handles the incoming StatusPacket
+//StatusPacketRoutine handles the incoming StatusPacket.
 //It first acknowledges the message  given the incoming vectorClock.
 //Then it compares its own vector clock with the one in the StatusPacket.
 //It either send a packet to the peer if it is missing one or ask for a packet with a StatusPacket.
 //If both peer are in sync, g toss a coin and either stop the rumormongering or continue with a new peer.
-func (g *Gossiper) handleStatusPacket(statusPacket *packet.StatusPacket, peerAddr *net.UDPAddr) {
+func (g *Gossiper) StatusPacketRoutine(statusPacket *packet.StatusPacket, peerAddr *net.UDPAddr) {
 	packet.OutputStatusPacket(statusPacket, peerAddr)
 	g.ListPeers()
+	b := g.AckRumors(peerAddr, statusPacket)
 
-	peerVector := statusPacket.Want
-	rumorMessage := g.AckRumors(peerVector, peerAddr)
-	g.rumorState.Mutex.Lock()
-
-	//Check if S has messages that R has not seen yet
-	b, msg := g.HasOther(g.rumorState.VectorClock, peerVector)
-	if b{
-		g.sendMessage(&packet.GossipPacket{Rumor: msg}, peerAddr)
-		g.rumorState.Mutex.Unlock()
-		return
-	}
-	//Check if R has messages that S has not seen yet
-	b, _ = g.HasOther(peerVector, g.rumorState.VectorClock)
-	if b{
-		g.sendStatusPacket(peerAddr)
-		g.rumorState.Mutex.Unlock()
-		return
-	}
-	g.rumorState.Mutex.Unlock()
-
-/*
-	//check if the sender has messages that the receiver has not seen
-	g.rumorState.Mutex.Lock()
-	for _, senderStatus := range g.rumorState.VectorClock {
-		for _, receiverStatus := range peerVector {
-			sameOrigin := senderStatus.Identifier == receiverStatus.Identifier
-			if sameOrigin && senderStatus.NextID > receiverStatus.NextID {
-				nextID := receiverStatus.NextID
-				origin := receiverStatus.Identifier
-				message := g.rumorState.ArchivedMessages[origin][nextID]
-				g.sendMessage(&packet.GossipPacket{Rumor: message}, peerAddr)
-				g.rumorState.Mutex.Unlock()
-				return
-			} else if sameOrigin && senderStatus.NextID < receiverStatus.NextID {
-				wantMessage = true
-			}
-		}
+	if !b {
+		g.StatusPacketHandler(statusPacket.Want, peerAddr, nil)
 	}
 
-	//ask for missing packets to the receiver if possible
-	if wantMessage {
-		g.sendStatusPacket(peerAddr)
-		g.rumorState.Mutex.Unlock()
-		return
-	}
-
-	g.rumorState.Mutex.Unlock()*/
-
-
-	packet.OutputInSync(peerAddr)
-	if rand.Int()%2 == 0 && rumorMessage != nil {
-		g.Rumormongering(rumorMessage, true)
-	}
-
-}
-
-//HasOther checks if there are messages in thisVC that are not in thatVC.
-func (g* Gossiper) HasOther(thisVC, thatVC []packet.PeerStatus) (bool, *packet.RumorMessage) {
-	for _, sVC := range thisVC{
-		inOtherVC := false
-		for _, rVC := range thatVC {
-			if sVC.Identifier == rVC.Identifier {
-				inOtherVC = true
-				if sVC.NextID > rVC.NextID {
-					nextID := rVC.NextID
-					origin := rVC.Identifier
-					message := g.rumorState.ArchivedMessages[origin][nextID]
-					return true, message
-
-				}
-			}
-		}
-
-		if !inOtherVC {
-			nextID := uint32(1)
-			origin := sVC.Identifier
-			message := g.rumorState.ArchivedMessages[origin][nextID]
-			return true, message
-		}
-	}
-	return false, nil
 }
 
 //sendStatusPacket sends a StatusPacket to peerAddr that serves as an ACK to the RumorMessage.

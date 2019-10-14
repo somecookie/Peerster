@@ -55,6 +55,7 @@ func getPeersAddr(peersStr, gossipAddr string) []*net.UDPAddr {
 }
 
 func main() {
+	//rand.Seed(time.Now().UTC().Unix())
 	waitGroup := sync.WaitGroup{}
 	waitGroup.Add(2)
 	go func(){

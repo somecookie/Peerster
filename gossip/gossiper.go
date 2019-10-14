@@ -100,6 +100,9 @@ func BasicGossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr,
 //selectPeerAtRandom selects a peer from the peers map.
 //It returns the key and the value
 func (g *Gossiper) selectPeerAtRandom() *net.UDPAddr {
+	if len(g.peers) == 0{
+		return nil
+	}
 	return g.peers[rand.Intn(len(g.peers))]
 }
 
@@ -146,7 +149,7 @@ func (g *Gossiper) HandleUPDGossiper() {
 				if !g.isPeer(peerAddr) {
 					g.peers = append(g.peers, peerAddr)
 				}
-				g.handleGossipPacket(receivedPacket, peerAddr)
+				g.GossipPacketHandler(receivedPacket, peerAddr)
 			}
 		}
 	}
@@ -191,24 +194,30 @@ func (g *Gossiper) UpdateRumorState(message *packet.RumorMessage) {
 }
 
 func (g *Gossiper) updateVectorClock(message *packet.RumorMessage) {
+	inVC := false
 	for i, peerStat := range g.rumorState.VectorClock {
 		if peerStat.Identifier == message.Origin {
+			inVC = true
 			if message.ID == peerStat.NextID {
 				g.rumorState.VectorClock[i].NextID += 1
 			}
 			return
 		}
 	}
-	var nextID uint32
-	if message.ID == 1 {
-		nextID = 2
-	} else {
-		nextID = 1
+
+	if !inVC{
+		var nextID uint32
+		if message.ID == 1 {
+			nextID = 2
+		} else {
+			nextID = 1
+		}
+		g.rumorState.VectorClock = append(g.rumorState.VectorClock, packet.PeerStatus{
+			Identifier: message.Origin,
+			NextID:     nextID,
+		})
 	}
-	g.rumorState.VectorClock = append(g.rumorState.VectorClock, packet.PeerStatus{
-		Identifier: message.Origin,
-		NextID:     nextID,
-	})
+
 }
 
 func (g *Gossiper) updateArchive(message *packet.RumorMessage) {
@@ -224,9 +233,20 @@ func (g *Gossiper) updateArchive(message *packet.RumorMessage) {
 
 //Rumormongering forwards the given RumorMessage to a randomly selected peer
 //It updates the RumorStatus of g.
-func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool) {
+//In the case where flippedCoin is false, pastAddr should be nil.
+func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool, pastAddr *net.UDPAddr) {
 
 	peerAddr := g.selectPeerAtRandom()
+	if peerAddr == nil || (len(g.peers) == 1 && pastAddr != nil) {
+		return
+	}
+
+	if peerAddr == pastAddr{
+		for peerAddr == pastAddr{
+			peerAddr = g.selectPeerAtRandom()
+		}
+	}
+
 	g.sendMessage(&packet.GossipPacket{Rumor: message}, peerAddr)
 
 	if flippedCoin {
@@ -238,13 +258,17 @@ func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool
 
 func (g *Gossiper) AntiEntropyRoutine() {
 	ticker := time.NewTicker(g.antiEntropy * time.Second)
+	defer ticker.Stop()
 	for{
 		select{
 		case <- ticker.C:
-			peerAddr := g.selectPeerAtRandom()
-			g.rumorState.Mutex.Lock()
-			g.sendStatusPacket(peerAddr)
-			g.rumorState.Mutex.Unlock()
+
+			if peerAddr := g.selectPeerAtRandom(); peerAddr == nil{
+				g.rumorState.Mutex.Lock()
+				g.sendStatusPacket(peerAddr)
+				g.rumorState.Mutex.Unlock()
+			}
+
 		}
 	}
 }

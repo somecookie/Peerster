@@ -15,6 +15,10 @@ type PeerStatus struct {
 	NextID     uint32 //lowest sequence number for which the peer has not yet seen a message from the origin
 }
 
+func (p PeerStatus) String() string{
+	return fmt.Sprintf("Identifier %s with ID %d", p.Identifier, p.NextID)
+}
+
 type RumorState struct {
 	VectorClock      []PeerStatus
 	ArchivedMessages map[string]map[uint32]*RumorMessage

@@ -8,7 +8,7 @@ cd ..
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
-DEBUG="true"
+DEBUG="false"
 
 outputFiles=()
 message_c1_1=Weather_is_clear
@@ -103,30 +103,25 @@ do
 
 	if [[ "$gossipPort" != 5004 ]] ; then
 		if !(grep -Eq "$msgLine1" "${outputFiles[$i]}") ; then
-		grep -E "$msgLine1" "${outputFiles[$i]}"
         	failed="T"
     	fi
 		if !(grep -Eq "$msgLine2" "${outputFiles[$i]}") ; then
-		grep -E "$msgLine2" "${outputFiles[$i]}"
-		failed="T"
+        	failed="T"
     	fi
 	fi
 
 	if [[ "$gossipPort" != 5001 ]] ; then
 		if !(grep -Eq "$msgLine3" "${outputFiles[$i]}") ; then
-		grep -E "$msgLine3" "${outputFiles[$i]}"
-		failed="T"
+        	failed="T"
     	fi
 		if !(grep -Eq "$msgLine4" "${outputFiles[$i]}") ; then
-		grep -E "$msgLine4" "${outputFiles[$i]}"
-		failed="T"
+        	failed="T"
     	fi
 	fi
 	
 	if [[ "$gossipPort" != 5006 ]] ; then
 		if !(grep -Eq "$msgLine5" "${outputFiles[$i]}") ; then
-		grep -E "$msgLine5" "${outputFiles[$i]}"
-		failed="T"
+        	failed="T"
     	fi
 	fi
 	gossipPort=$(($gossipPort+1))

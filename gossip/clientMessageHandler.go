@@ -25,7 +25,7 @@ func (g *Gossiper) startRumor(message *packet.Message) {
 			Text:   message.Text,
 		}
 		g.UpdateRumorState(rumorMessage)
-		g.Rumormongering(rumorMessage, false)
+		g.Rumormongering(rumorMessage, false, nil)
 	}
 }
 
