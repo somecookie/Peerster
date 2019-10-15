@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Peerster</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <script src="frontEnd.js"></script>
+    
+</head>
+
+<body>
+    <h1>Peerster</h1>
+    <h3>Peer ID</h3>
+    <p id="nodeName"></p>
+    <hr>
+    <div>
+        <h3>Chat box</h3>
+        <table id="chatBox" style="width:100%">
+            <tr>
+                <th>From</th>
+                <th>Message</th>
+            </tr>
+
+        </table>
+        <button id="sendMessage" type="button">Send Message</button> <input id="newMessage" type="text" size="140"><br>
+        <hr>
+    </div>
+
+    <div>
+        <h3>Known nodes</h3>
+        <ul id="nodes">
+        </ul>
+        <button id="addNode" type="button">Add Node</button> <input id="newNode" type="text"><br>
+    </div>
+    <hr>
+
+    <script>
+        document.getElementById("sendMessage").onclick = buttonClickNewMessage
+        document.getElementById("addNode").onclick = buttonClickNewNode
+    </script>
+</body>
+
+
+</html>

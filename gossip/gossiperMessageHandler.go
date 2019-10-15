@@ -8,25 +8,29 @@ import (
 
 func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, peerAddr *net.UDPAddr) {
 
-	if receivedPacket.Rumor != nil {
-		go g.RumorMessageRoutine(receivedPacket.Rumor, peerAddr)
-	} else if receivedPacket.Simple != nil && g.simple {
-		go g.SimpleMessageRoutine(receivedPacket.Simple, peerAddr)
-	} else if receivedPacket.Status != nil {
-		go g.StatusPacketRoutine(receivedPacket.Status, peerAddr)
+	if g.simple {
+		if receivedPacket.Simple != nil {
+			go g.SimpleMessageRoutine(receivedPacket.Simple, peerAddr)
+		}
+	} else {
+		if receivedPacket.Rumor != nil {
+			go g.RumorMessageRoutine(receivedPacket.Rumor, peerAddr)
+		} else if receivedPacket.Status != nil {
+			go g.StatusPacketRoutine(receivedPacket.Status, peerAddr)
+		}
 	}
 
 }
 
 //SimpleMessageRoutine handle the GossipPackets of type SimpleMessage
-//It first prints the message and g's peers.
-//Finally it forwards message to all g's peers (except peerAddr)
+//It first prints the message and g's Peers.
+//Finally it forwards message to all g's Peers (except peerAddr)
 func (g *Gossiper) SimpleMessageRoutine(message *packet.SimpleMessage, peerAddr *net.UDPAddr) {
 	packet.OutputSimpleMessage(message)
 	g.ListPeers()
 	message.RelayPeerAddr = g.gossipAddr
-
-	for _, addr := range g.peers {
+	g.Peers.Mutex.Lock()
+	for _, addr := range g.Peers.List {
 		if addr == nil || addr.String() == peerAddr.String() {
 			continue
 		}
@@ -37,26 +41,27 @@ func (g *Gossiper) SimpleMessageRoutine(message *packet.SimpleMessage, peerAddr 
 			helper.LogError(err)
 		}
 	}
+	g.Peers.Mutex.Unlock()
 
 }
 
 //RumorMessageRoutine handles the RumorMessage.
-//It first prints the message and g's peers. Then it sends an ack to the peer that send the rumor.
+//It first prints the message and g's Peers. Then it sends an ack to the peer that send the rumor.
 //Finally, if it is a new Rumor g starts Rumormongering
 func (g *Gossiper) RumorMessageRoutine(message *packet.RumorMessage, peerAddr *net.UDPAddr) {
 	packet.OutputInRumorMessage(message, peerAddr)
 	g.ListPeers()
-	g.rumorState.Mutex.Lock()
+	g.RumorState.Mutex.Lock()
 	nextID := g.GetNextID(message.Origin)
 
-	if message.ID >= nextID && message.Origin != g.name {
+	if message.ID >= nextID && message.Origin != g.Name {
 		g.UpdateRumorState(message)
 		g.sendStatusPacket(peerAddr)
-		g.rumorState.Mutex.Unlock()
+		g.RumorState.Mutex.Unlock()
 		g.Rumormongering(message, false, peerAddr, nil)
 	} else {
 		g.sendStatusPacket(peerAddr)
-		g.rumorState.Mutex.Unlock()
+		g.RumorState.Mutex.Unlock()
 	}
 }
 
@@ -79,7 +84,7 @@ func (g *Gossiper) StatusPacketRoutine(statusPacket *packet.StatusPacket, peerAd
 //sendStatusPacket sends a StatusPacket to peerAddr that serves as an ACK to the RumorMessage.
 func (g *Gossiper) sendStatusPacket(peerAddr *net.UDPAddr) {
 	gossipPacket := &packet.GossipPacket{
-		Status: &packet.StatusPacket{Want: g.rumorState.VectorClock},
+		Status: &packet.StatusPacket{Want: g.RumorState.VectorClock},
 	}
 	g.sendMessage(gossipPacket, peerAddr)
 }

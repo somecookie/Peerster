@@ -51,13 +51,14 @@ func (g *Gossiper) WaitForAck(message *packet.RumorMessage, peerAddr *net.UDPAdd
 	select {
 	case <-ticker.C:
 		g.Rumormongering(message, false, nil, nil)
+		g.RemoveACKed(ack, peerAddr)
 	case sp := <-ack.AckedChannel:
 		g.RemoveACKed(ack, peerAddr)
 		g.StatusPacketHandler(sp.Want, peerAddr, message)
 	}
 }
 
-//AddToPendingACK adds the ack to the list of pending acknowledgment
+//AddToPendingACK adds the ack to the List of pending acknowledgment
 func (g *Gossiper) AddToPendingACK(ack ACK, peerAddr *net.UDPAddr) {
 	g.pendingACK.mutex.Lock()
 	g.pendingACK.ACKS[peerAddr.String()] = append(g.pendingACK.ACKS[peerAddr.String()], ack)
@@ -70,6 +71,7 @@ func (g *Gossiper) RemoveACKed(ack ACK, peerAddr *net.UDPAddr) {
 	for i, a := range g.pendingACK.ACKS[peerAddr.String()] {
 		if a == ack {
 			g.pendingACK.ACKS[peerAddr.String()][i] = g.pendingACK.ACKS[peerAddr.String()][length-1]
+			break
 		}
 	}
 	g.pendingACK.ACKS[peerAddr.String()] = g.pendingACK.ACKS[peerAddr.String()][:length-1]
@@ -94,23 +96,23 @@ func (g *Gossiper) AckRumors(peerAddr *net.UDPAddr, statusPacket *packet.StatusP
 
 func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr *net.UDPAddr, rumorMessage *packet.RumorMessage) {
 	//Check if S has messages that R has not seen yet
-	g.rumorState.Mutex.Lock()
+	g.RumorState.Mutex.Lock()
 
-	b, msg := g.HasOther(g.rumorState.VectorClock, peerVector)
+	b, msg := g.HasOther(g.RumorState.VectorClock, peerVector)
 
 	if b {
 		g.Rumormongering(msg, false, nil, peerAddr)
-		g.rumorState.Mutex.Unlock()
+		g.RumorState.Mutex.Unlock()
 		return
 	}
 	//Check if R has messages that S has not seen yet
-	b, _ = g.HasOther(peerVector, g.rumorState.VectorClock)
+	b, _ = g.HasOther(peerVector, g.RumorState.VectorClock)
 	if b {
 		g.sendStatusPacket(peerAddr)
-		g.rumorState.Mutex.Unlock()
+		g.RumorState.Mutex.Unlock()
 		return
 	}
-	g.rumorState.Mutex.Unlock()
+	g.RumorState.Mutex.Unlock()
 	packet.OutputInSync(peerAddr)
 
 	if rand.Int()%2 == 0 && rumorMessage != nil {
@@ -128,7 +130,7 @@ func (g *Gossiper) HasOther(thisVC, thatVC []packet.PeerStatus) (bool, *packet.R
 				if sVC.NextID > rVC.NextID {
 					nextID := rVC.NextID
 					origin := rVC.Identifier
-					message := g.rumorState.ArchivedMessages[origin][nextID]
+					message := g.RumorState.ArchivedMessages[origin][nextID]
 					return true, message
 
 				}
@@ -138,7 +140,7 @@ func (g *Gossiper) HasOther(thisVC, thatVC []packet.PeerStatus) (bool, *packet.R
 		if !inOtherVC {
 			nextID := uint32(1)
 			origin := sVC.Identifier
-			message := g.rumorState.ArchivedMessages[origin][nextID]
+			message := g.RumorState.ArchivedMessages[origin][nextID]
 			return true, message
 		}
 	}
