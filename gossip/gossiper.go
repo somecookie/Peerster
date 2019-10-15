@@ -213,6 +213,7 @@ func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool
 
 	g.Peers.Mutex.Lock()
 	if len(g.Peers.List) == 0 || (len(g.Peers.List) == 1 && pastAddr != nil) {
+		g.Peers.Mutex.Unlock()
 		return
 	}
 	g.Peers.Mutex.Unlock()
