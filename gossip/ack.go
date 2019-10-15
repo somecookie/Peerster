@@ -50,7 +50,7 @@ func (g *Gossiper) WaitForAck(message *packet.RumorMessage, peerAddr *net.UDPAdd
 
 	select {
 	case <-ticker.C:
-		g.Rumormongering(message, false, nil)
+		g.Rumormongering(message, false, nil, nil)
 	case sp := <-ack.AckedChannel:
 		g.RemoveACKed(ack, peerAddr)
 		g.StatusPacketHandler(sp.Want, peerAddr, message)
@@ -99,7 +99,7 @@ func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr 
 	b, msg := g.HasOther(g.rumorState.VectorClock, peerVector)
 
 	if b {
-		g.sendMessage(&packet.GossipPacket{Rumor: msg}, peerAddr)
+		g.Rumormongering(msg, false, nil, peerAddr)
 		g.rumorState.Mutex.Unlock()
 		return
 	}
@@ -114,7 +114,7 @@ func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr 
 	packet.OutputInSync(peerAddr)
 
 	if rand.Int()%2 == 0 && rumorMessage != nil {
-		g.Rumormongering(rumorMessage, true, peerAddr)
+		g.Rumormongering(rumorMessage, true, peerAddr, nil)
 	}
 }
 

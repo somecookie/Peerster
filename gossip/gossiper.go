@@ -234,26 +234,33 @@ func (g *Gossiper) updateArchive(message *packet.RumorMessage) {
 //Rumormongering forwards the given RumorMessage to a randomly selected peer
 //It updates the RumorStatus of g.
 //In the case where flippedCoin is false, pastAddr should be nil.
-func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool, pastAddr *net.UDPAddr) {
+func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool, pastAddr *net.UDPAddr, dstAddr *net.UDPAddr) {
 
-	peerAddr := g.selectPeerAtRandom()
-	if peerAddr == nil || (len(g.peers) == 1 && pastAddr != nil) {
+	if len(g.peers) == 0 || (len(g.peers) == 1 && pastAddr != nil) {
 		return
 	}
-
-	if peerAddr == pastAddr{
-		for peerAddr == pastAddr{
-			peerAddr = g.selectPeerAtRandom()
-		}
-	}
-
+	peerAddr := g.SelectNewPeer(dstAddr, pastAddr)
+	packet.OutputOutRumorMessage(peerAddr)
 	g.sendMessage(&packet.GossipPacket{Rumor: message}, peerAddr)
 
 	if flippedCoin {
 		packet.OutputFlippedCoin(peerAddr)
 	}
-	packet.OutputOutRumorMessage(peerAddr)
 	go g.WaitForAck(message, peerAddr)
+}
+
+func (g *Gossiper) SelectNewPeer(dstAddr *net.UDPAddr, pastAddr *net.UDPAddr) *net.UDPAddr {
+	peerAddr := dstAddr
+	if dstAddr == nil {
+		peerAddr = g.selectPeerAtRandom()
+
+		if peerAddr == pastAddr {
+			for peerAddr == pastAddr {
+				peerAddr = g.selectPeerAtRandom()
+			}
+		}
+	}
+	return peerAddr
 }
 
 func (g *Gossiper) AntiEntropyRoutine() {

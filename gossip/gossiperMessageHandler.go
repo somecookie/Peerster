@@ -53,7 +53,7 @@ func (g *Gossiper) RumorMessageRoutine(message *packet.RumorMessage, peerAddr *n
 		g.UpdateRumorState(message)
 		g.sendStatusPacket(peerAddr)
 		g.rumorState.Mutex.Unlock()
-		g.Rumormongering(message, false, peerAddr)
+		g.Rumormongering(message, false, peerAddr, nil)
 	} else {
 		g.sendStatusPacket(peerAddr)
 		g.rumorState.Mutex.Unlock()
