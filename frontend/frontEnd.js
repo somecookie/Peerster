@@ -60,6 +60,7 @@ function addNewNodeToList(address) {
     let textNode = document.createTextNode(address)
     node.appendChild(textNode)
     document.getElementById("nodes").appendChild(node)
+    getAllNodes()
 
 }
 
