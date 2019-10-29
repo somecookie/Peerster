@@ -9,14 +9,14 @@ func getErrorString(errorName, where, message string) string {
 	return fmt.Sprintf("Error in %s %s: %s\n", where, errorName, message)
 }
 
-func HandleCrashingErr(err error){
-	if err != nil{
+func HandleCrashingErr(err error) {
+	if err != nil {
 		panic(err)
 	}
 }
 
-func LogError(err error){
-	if err != nil{
+func LogError(err error) {
+	if err != nil {
 		log.Println(err)
 	}
 }

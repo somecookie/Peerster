@@ -1,7 +1,6 @@
 package gossip
 
 import (
-	"fmt"
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
 	"net"
@@ -13,7 +12,7 @@ import (
 type Gossiper struct {
 	gossipAddr  string
 	Name        string
-	Peers       ListPeers
+	Peers       PeersSet
 	simple      bool
 	connClient  *net.UDPConn
 	connGossip  *net.UDPConn
@@ -21,22 +20,6 @@ type Gossiper struct {
 	pendingACK  PendingACK
 	counter     uint32
 	antiEntropy time.Duration
-}
-
-func (g *Gossiper) String() string {
-	s := ""
-	s += "Gossip Address: " + g.gossipAddr + "\n"
-	s += "Name: " + g.Name + "\n"
-	s += "Peers:\n"
-	g.Peers.Mutex.Lock()
-	for _, p := range g.Peers.List {
-		s += "- " + p.String() + "\n"
-	}
-	g.Peers.Mutex.Lock()
-	s += fmt.Sprintf("Counter: %d\n", g.counter)
-	s += g.RumorState.String() + "\n"
-	s += g.pendingACK.String() + "\n"
-	return s
 }
 
 //BasicGossiperFactory creates a Gossiper from the parsed flags of main.go.
@@ -77,23 +60,26 @@ func BasicGossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr,
 		VectorClock:      vectorClock,
 		ArchivedMessages: archivedMessage,
 		MessageList:      make([]*packet.RumorMessage, 0),
-		Mutex:            &sync.Mutex{},
+		Mutex:            sync.RWMutex{},
 	}
-
 	pending := PendingACK{
-		ACKS:  make(map[string][]ACK),
-		mutex: sync.Mutex{},
+		ACKS:  make(map[string]map[ACK]bool),
+		Mutex: sync.RWMutex{},
 	}
 
-	listPeers := ListPeers{
-		List:  peers,
-		Mutex: sync.Mutex{},
+	peersSet := PeersSet{
+		Set:   make(map[string]*net.UDPAddr),
+		Mutex: sync.RWMutex{},
+	}
+
+	for _, addr := range peers {
+		peersSet.Add(addr)
 	}
 
 	return &Gossiper{
 		gossipAddr:  gossipAddr,
 		Name:        name,
-		Peers:       listPeers,
+		Peers:       peersSet,
 		simple:      simple,
 		connClient:  udpConnClient,
 		connGossip:  udpConnGossip,
@@ -144,7 +130,9 @@ func (g *Gossiper) HandleUPDGossiper() {
 			receivedPacket, err := packet.GetGossipPacket(buffer, n)
 
 			if err == nil {
-				g.AddPeer(peerAddr)
+				g.Peers.Mutex.Lock()
+				g.Peers.Add(peerAddr)
+				g.Peers.Mutex.Unlock()
 				g.GossipPacketHandler(receivedPacket, peerAddr)
 			}
 		}
@@ -161,10 +149,16 @@ func (g *Gossiper) GetNextID(origin string) uint32 {
 	return 1
 }
 
+//UpdateRumorState updates the vector clock and the archives of g.
+//This method is thread-safe, no need to lock when using it.
 func (g *Gossiper) UpdateRumorState(message *packet.RumorMessage) {
-
+	g.RumorState.Mutex.Lock()
 	g.updateVectorClock(message)
+	g.RumorState.Mutex.Unlock()
+
+	g.RumorState.Mutex.Lock()
 	g.updateArchive(message)
+	g.RumorState.Mutex.Unlock()
 }
 
 func (g *Gossiper) updateVectorClock(message *packet.RumorMessage) {
@@ -195,7 +189,7 @@ func (g *Gossiper) updateVectorClock(message *packet.RumorMessage) {
 }
 
 func (g *Gossiper) updateArchive(message *packet.RumorMessage) {
-	g.RumorState.MessageList = append(g.RumorState.MessageList,message)
+	g.RumorState.MessageList = append(g.RumorState.MessageList, message)
 	_, ok := g.RumorState.ArchivedMessages[message.Origin]
 
 	if ok {
@@ -211,30 +205,37 @@ func (g *Gossiper) updateArchive(message *packet.RumorMessage) {
 //In the case where flippedCoin is false, pastAddr should be nil.
 func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool, pastAddr *net.UDPAddr, dstAddr *net.UDPAddr) {
 
-	g.Peers.Mutex.Lock()
-	if len(g.Peers.List) == 0 || (len(g.Peers.List) == 1 && pastAddr != nil) {
-		g.Peers.Mutex.Unlock()
+	g.Peers.Mutex.RLock()
+	nbrPeers := len(g.Peers.Set)
+	g.Peers.Mutex.RUnlock()
+
+	if nbrPeers == 0 || (nbrPeers == 1 && pastAddr != nil) {
 		return
 	}
-	g.Peers.Mutex.Unlock()
 	peerAddr := g.SelectNewPeer(dstAddr, pastAddr)
-	packet.OutputOutRumorMessage(peerAddr)
+	packet.PrintMongering(peerAddr)
 	g.sendMessage(&packet.GossipPacket{Rumor: message}, peerAddr)
 
 	if flippedCoin {
-		packet.OutputFlippedCoin(peerAddr)
+		packet.PrintFlippedCoin(peerAddr)
 	}
 	go g.WaitForAck(message, peerAddr)
 }
 
+//SelectNewPeer chooses a new peer that is different than the last chosen peer
+//This method is thread-safe.
 func (g *Gossiper) SelectNewPeer(dstAddr *net.UDPAddr, pastAddr *net.UDPAddr) *net.UDPAddr {
 	peerAddr := dstAddr
 	if dstAddr == nil {
-		peerAddr = g.selectPeerAtRandom()
+		g.Peers.Mutex.RLock()
+		peerAddr = g.Peers.Random()
+		g.Peers.Mutex.RUnlock()
 
 		if peerAddr == pastAddr {
 			for peerAddr == pastAddr {
-				peerAddr = g.selectPeerAtRandom()
+				g.Peers.Mutex.RLock()
+				peerAddr = g.Peers.Random()
+				g.Peers.Mutex.RUnlock()
 			}
 		}
 	}
@@ -248,10 +249,14 @@ func (g *Gossiper) AntiEntropyRoutine() {
 		select {
 		case <-ticker.C:
 
-			if peerAddr := g.selectPeerAtRandom(); peerAddr != nil {
-				g.RumorState.Mutex.Lock()
+			g.Peers.Mutex.RLock()
+			peerAddr := g.Peers.Random()
+			g.Peers.Mutex.RUnlock()
+
+			if peerAddr != nil {
+				g.RumorState.Mutex.RLock()
 				g.sendStatusPacket(peerAddr)
-				g.RumorState.Mutex.Unlock()
+				g.RumorState.Mutex.RUnlock()
 			}
 
 		}

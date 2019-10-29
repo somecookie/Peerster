@@ -23,27 +23,10 @@ type RumorState struct {
 	VectorClock      []PeerStatus
 	ArchivedMessages map[string]map[uint32]*RumorMessage
 	MessageList      []*RumorMessage
-	Mutex            *sync.Mutex
+	Mutex            sync.RWMutex
 }
 
-func (r *RumorState) String() string {
-	r.Mutex.Lock()
-	s := "RumorState:\n"
-	s += "VectorClock:\n"
-	for _, vc := range r.VectorClock {
-		s += fmt.Sprintf("Origin: %s with nextID %d\n", vc.Identifier, vc.NextID)
-	}
-	for k1, v1 := range r.ArchivedMessages {
-		s += "From " + k1 + "\n"
-		for id, msg := range v1 {
-			s += fmt.Sprintf("%d: %s\n", id, msg.Text)
-		}
-	}
-	r.Mutex.Unlock()
-	return s
-}
-
-func OutputStatusPacket(packet *StatusPacket, peerAddr *net.UDPAddr) {
+func PrintStatusPacket(packet *StatusPacket, peerAddr *net.UDPAddr) {
 	s := fmt.Sprintf("STATUS from %s", peerAddr.String())
 	for _, peerStatus := range packet.Want {
 		//peer %s nextID %d
@@ -52,10 +35,10 @@ func OutputStatusPacket(packet *StatusPacket, peerAddr *net.UDPAddr) {
 	fmt.Println(s)
 }
 
-func OutputInSync(peerAddr *net.UDPAddr) {
+func PrintInSync(peerAddr *net.UDPAddr) {
 	fmt.Printf("IN SYNC WITH %s\n", peerAddr.String())
 }
 
-func OutputFlippedCoin(peerAddr *net.UDPAddr) {
+func PrintFlippedCoin(peerAddr *net.UDPAddr) {
 	fmt.Printf("FLIPPED COIN sending rumor to %s\n", peerAddr.String())
 }

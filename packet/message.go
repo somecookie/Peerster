@@ -6,7 +6,7 @@ import (
 	"github.com/somecookie/Peerster/helper"
 )
 
-type Message struct{
+type Message struct {
 	Text string
 }
 
@@ -21,6 +21,7 @@ func GetMessage(buffer []byte, n int) (*Message, error) {
 	return receivedPacket, err
 }
 
-func OutputMessage(message *Message) {
+func PrintClientMessage(message *Message) {
 	fmt.Printf("CLIENT MESSAGE %s\n", message.Text)
 }
+

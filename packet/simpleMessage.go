@@ -8,7 +8,7 @@ type SimpleMessage struct {
 	Contents      string
 }
 
-func OutputSimpleMessage(message *SimpleMessage) {
+func PrintSimpleMessage(message *SimpleMessage) {
 	fmt.Printf("SIMPLE MESSAGE origin %s from %s contents %s\n", message.OriginalName, message.RelayPeerAddr, message.Contents)
 }
 

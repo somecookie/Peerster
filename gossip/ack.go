@@ -1,9 +1,7 @@
 package gossip
 
 import (
-	"fmt"
 	"github.com/somecookie/Peerster/packet"
-	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -18,21 +16,8 @@ type ACK struct {
 }
 
 type PendingACK struct {
-	ACKS  map[string][]ACK
-	mutex sync.Mutex
-}
-
-func (pack *PendingACK) String() string {
-	pack.mutex.Lock()
-	s := ""
-	for ip, acks := range pack.ACKS {
-		s += ip + ":\n"
-		for _, ack := range acks {
-			s += fmt.Sprintf("- Origin %s with ID %d\n", ack.Origin, ack.ID)
-		}
-	}
-	pack.mutex.Unlock()
-	return s
+	ACKS  map[string]map[ACK]bool
+	Mutex sync.RWMutex
 }
 
 //WaitForAck waits for the acknowledgment. It timeouts after 10 seconds.
@@ -43,7 +28,10 @@ func (g *Gossiper) WaitForAck(message *packet.RumorMessage, peerAddr *net.UDPAdd
 		ID:           message.ID,
 		AckedChannel: ackedChannel,
 	}
+
+	g.pendingACK.Mutex.Lock()
 	g.AddToPendingACK(ack, peerAddr)
+	g.pendingACK.Mutex.Unlock()
 
 	ticker := time.NewTicker(TIMEOUT * time.Second)
 	defer ticker.Stop()
@@ -51,73 +39,44 @@ func (g *Gossiper) WaitForAck(message *packet.RumorMessage, peerAddr *net.UDPAdd
 	select {
 	case <-ticker.C:
 		g.Rumormongering(message, false, nil, nil)
+
+		g.pendingACK.Mutex.Lock()
 		g.RemoveACKed(ack, peerAddr)
+		g.pendingACK.Mutex.Unlock()
 	case sp := <-ack.AckedChannel:
+		g.pendingACK.Mutex.Lock()
 		g.RemoveACKed(ack, peerAddr)
+		g.pendingACK.Mutex.Unlock()
+
 		g.StatusPacketHandler(sp.Want, peerAddr, message)
 	}
 }
 
 //AddToPendingACK adds the ack to the List of pending acknowledgment
 func (g *Gossiper) AddToPendingACK(ack ACK, peerAddr *net.UDPAddr) {
-	g.pendingACK.mutex.Lock()
-	g.pendingACK.ACKS[peerAddr.String()] = append(g.pendingACK.ACKS[peerAddr.String()], ack)
-	g.pendingACK.mutex.Unlock()
+	if _, ok := g.pendingACK.ACKS[peerAddr.String()]; !ok{
+		g.pendingACK.ACKS[peerAddr.String()] = make(map[ACK]bool)
+	}
+	g.pendingACK.ACKS[peerAddr.String()][ack] = true
 }
 
 func (g *Gossiper) RemoveACKed(ack ACK, peerAddr *net.UDPAddr) {
-	g.pendingACK.mutex.Lock()
-	length := len(g.pendingACK.ACKS[peerAddr.String()])
-	for i, a := range g.pendingACK.ACKS[peerAddr.String()] {
-		if a == ack {
-			g.pendingACK.ACKS[peerAddr.String()][i] = g.pendingACK.ACKS[peerAddr.String()][length-1]
-			break
-		}
-	}
-	g.pendingACK.ACKS[peerAddr.String()] = g.pendingACK.ACKS[peerAddr.String()][:length-1]
-	g.pendingACK.mutex.Unlock()
+	delete(g.pendingACK.ACKS[peerAddr.String()], ack)
 }
 
 func (g *Gossiper) AckRumors(peerAddr *net.UDPAddr, statusPacket *packet.StatusPacket) bool {
 	hasACKED := false
 	peerVector := statusPacket.Want
-	g.pendingACK.mutex.Lock()
+
 	for _, clock := range peerVector {
-		for _, ack := range g.pendingACK.ACKS[peerAddr.String()] {
+		for ack := range g.pendingACK.ACKS[peerAddr.String()] {
 			if clock.Identifier == ack.Origin && ack.ID < clock.NextID {
 				hasACKED = true
 				ack.AckedChannel <- statusPacket
 			}
 		}
 	}
-	g.pendingACK.mutex.Unlock()
 	return hasACKED
-}
-
-func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr *net.UDPAddr, rumorMessage *packet.RumorMessage) {
-	//Check if S has messages that R has not seen yet
-	g.RumorState.Mutex.Lock()
-
-	b, msg := g.HasOther(g.RumorState.VectorClock, peerVector)
-
-	if b {
-		g.Rumormongering(msg, false, nil, peerAddr)
-		g.RumorState.Mutex.Unlock()
-		return
-	}
-	//Check if R has messages that S has not seen yet
-	b, _ = g.HasOther(peerVector, g.RumorState.VectorClock)
-	if b {
-		g.sendStatusPacket(peerAddr)
-		g.RumorState.Mutex.Unlock()
-		return
-	}
-	g.RumorState.Mutex.Unlock()
-	packet.OutputInSync(peerAddr)
-
-	if rand.Int()%2 == 0 && rumorMessage != nil {
-		g.Rumormongering(rumorMessage, true, peerAddr, nil)
-	}
 }
 
 //HasOther checks if there are messages in thisVC that are not in thatVC.

@@ -7,7 +7,7 @@ import (
 
 //HandleMessage is used to handle the messages that come from the client
 func (g *Gossiper) HandleMessage(message *packet.Message) {
-	packet.OutputMessage(message)
+	packet.PrintClientMessage(message)
 	if g.simple {
 		go g.sendSimpleMessage(message)
 	} else {
@@ -24,10 +24,13 @@ func (g *Gossiper) startRumor(message *packet.Message) {
 		ID:     g.counter,
 		Text:   message.Text,
 	}
-	g.RumorState.Mutex.Lock()
 	g.UpdateRumorState(rumorMessage)
-	g.RumorState.Mutex.Unlock()
-	if len(g.Peers.List) > 0 {
+
+	g.Peers.Mutex.RLock()
+	length := len(g.Peers.Set)
+	g.Peers.Mutex.RUnlock()
+
+	if length > 0 {
 		g.Rumormongering(rumorMessage, false, nil, nil)
 	}
 }
@@ -40,12 +43,13 @@ func (g *Gossiper) sendSimpleMessage(message *packet.Message) {
 		RelayPeerAddr: g.gossipAddr,
 		Contents:      message.Text,
 	}
-	g.Peers.Mutex.Lock()
-	for _, addr := range g.Peers.List {
+
+	g.Peers.Mutex.RLock()
+	defer g.Peers.Mutex.RUnlock()
+	for _,addr := range g.Peers.Set {
 		if addr == nil {
 			continue
 		}
 		g.sendMessage(&packet.GossipPacket{Simple: simpleMessage}, addr)
 	}
-	g.Peers.Mutex.Unlock()
 }
