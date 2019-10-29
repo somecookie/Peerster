@@ -20,13 +20,13 @@ func init() {
 	flag.StringVar(&msg, "msg", "", "message to be sent")
 	flag.StringVar(&gossiperAddr, "gossipAddr", "127.0.0.1", "ip address of the gossiper")
 	flag.Parse()
-	gossiperAddr += ":"+uiPort
+	gossiperAddr += ":" + uiPort
 }
 
 func main() {
 	udpAddr, conn := connectUDP()
 	defer conn.Close()
-	packetBytes, err := packet.GetPacketBytes(&packet.Message{Text:msg})
+	packetBytes, err := packet.GetPacketBytes(&packet.Message{Text: msg})
 	helper.HandleCrashingErr(err)
 	sendPacket(conn, packetBytes, udpAddr)
 }

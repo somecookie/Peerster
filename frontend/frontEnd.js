@@ -80,7 +80,6 @@ setInterval(() => {
         url: "http://localhost:8080/message",
         dataType:'json',
         success: function (data, status) {
-
             for(let i = numberMessage; i < data.length; i++){
                 numberMessage++
                 let message = data[i]
