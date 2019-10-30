@@ -3,9 +3,11 @@ package gossip
 import (
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
+	"github.com/somecookie/Peerster/routing"
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -20,10 +22,12 @@ type Gossiper struct {
 	pendingACK  PendingACK
 	counter     uint32
 	antiEntropy time.Duration
+	rtimer      time.Duration
+	DSDV        routing.DSDV
 }
 
-//BasicGossiperFactory creates a Gossiper from the parsed flags of main.go.
-func BasicGossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simple bool, antiEntropy int) (*Gossiper, error) {
+//GossiperFactory creates a Gossiper from the parsed flags of main.go.
+func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simple bool, antiEntropy int, rtimer int) (*Gossiper, error) {
 
 	ipPort := strings.Split(gossipAddr, ":")
 	if len(ipPort) != 2 {
@@ -87,6 +91,8 @@ func BasicGossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr,
 		pendingACK:  pending,
 		counter:     0,
 		antiEntropy: time.Duration(antiEntropy),
+		rtimer:      time.Duration(rtimer),
+		DSDV:        routing.DSDVFactory(),
 	}, nil
 }
 
@@ -101,7 +107,7 @@ func (g *Gossiper) sendMessage(gossipPacket *packet.GossipPacket, addr *net.UDPA
 
 }
 
-func (g *Gossiper) HandleUDPClient() {
+func (g *Gossiper) ClientListener() {
 
 	defer g.connClient.Close()
 
@@ -119,9 +125,8 @@ func (g *Gossiper) HandleUDPClient() {
 	}
 }
 
-func (g *Gossiper) HandleUPDGossiper() {
+func (g *Gossiper) GossiperListener() {
 	defer g.connGossip.Close()
-	go g.AntiEntropyRoutine()
 
 	buffer := make([]byte, 1024)
 	for {
@@ -201,8 +206,11 @@ func (g *Gossiper) updateArchive(message *packet.RumorMessage) {
 }
 
 //Rumormongering forwards the given RumorMessage to a randomly selected peer
-//It updates the RumorStatus of g.
 //In the case where flippedCoin is false, pastAddr should be nil.
+//message is the rumor message we want to forward
+//flipped coin tells if the rumor mongering was triggered by a coin flip
+//pasAddr is the address of the node that sent us the message
+//dstAddr is used when we want to send the rumor message to a given address
 func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool, pastAddr *net.UDPAddr, dstAddr *net.UDPAddr) {
 
 	g.Peers.Mutex.RLock()
@@ -242,6 +250,7 @@ func (g *Gossiper) SelectNewPeer(dstAddr *net.UDPAddr, pastAddr *net.UDPAddr) *n
 	return peerAddr
 }
 
+//AntiEntropyRoutine sends the anti-entropy Status Packet every g.antiEntropy seconds
 func (g *Gossiper) AntiEntropyRoutine() {
 	ticker := time.NewTicker(g.antiEntropy * time.Second)
 	defer ticker.Stop()
@@ -261,4 +270,43 @@ func (g *Gossiper) AntiEntropyRoutine() {
 
 		}
 	}
+}
+
+//RouteRumorRoutine sends the route rumor message every g.rtimer seconds.
+//It starts by sending a route rumor message.
+func (g *Gossiper) RouteRumorRoutine() {
+
+	g.Peers.Mutex.RLock()
+	peers := g.Peers.PeersSetAsList()
+	g.Peers.Mutex.RUnlock()
+
+	routeRumorMessage := g.createNewRouteRumor()
+
+	for _,peer := range peers{
+		g.Rumormongering(routeRumorMessage,false,nil,peer)
+	}
+
+	ticker := time.NewTicker(g.rtimer * time.Second)
+	defer ticker.Stop()
+
+	for{
+		select {
+		case <- ticker.C:
+			routeRumorMessage := g.createNewRouteRumor()
+			g.Rumormongering(routeRumorMessage, false, nil, nil)
+		}
+	}
+
+}
+
+//createNewRouteRumor creates a new route rumor message
+func (g *Gossiper) createNewRouteRumor() *packet.RumorMessage {
+	atomic.AddUint32(&g.counter, 1)
+	routeRumorMessage := &packet.RumorMessage{
+		Origin: g.Name,
+		ID:     g.counter,
+		Text:   "",
+	}
+	g.UpdateRumorState(routeRumorMessage)
+	return routeRumorMessage
 }

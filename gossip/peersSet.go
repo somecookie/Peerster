@@ -59,6 +59,16 @@ func (ps *PeersSet) Random() *net.UDPAddr {
 	return nil
 }
 
+//PeersSetAsList returns the values of the PeersSet as a list of *net.UDPAddr
+func (ps* PeersSet) PeersSetAsList() []*net.UDPAddr{
+	ls := make([]*net.UDPAddr, 0, len(ps.Set))
+	for _,addr := range ps.Set{
+		ls = append(ls, addr)
+	}
+	return ls
+}
+
+
 func PrintPeers(g *Gossiper) {
 	fmt.Printf("PEERS %s\n", g.Peers.String())
 }

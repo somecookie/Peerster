@@ -8,7 +8,6 @@ import (
 )
 
 func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, peerAddr *net.UDPAddr) {
-
 	if g.simple {
 		if receivedPacket.Simple != nil {
 			go g.SimpleMessageRoutine(receivedPacket.Simple, peerAddr)
@@ -61,6 +60,11 @@ func (g *Gossiper) RumorMessageRoutine(message *packet.RumorMessage, peerAddr *n
 	nextID := g.GetNextID(message.Origin)
 
 	if message.ID >= nextID && message.Origin != g.Name {
+
+		g.DSDV.Mutex.Lock()
+		g.DSDV.Update(message, peerAddr)
+		g.DSDV.Mutex.Unlock()
+
 		g.UpdateRumorState(message)
 
 		g.RumorState.Mutex.RLock()
