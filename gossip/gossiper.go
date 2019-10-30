@@ -194,7 +194,10 @@ func (g *Gossiper) updateVectorClock(message *packet.RumorMessage) {
 }
 
 func (g *Gossiper) updateArchive(message *packet.RumorMessage) {
-	g.RumorState.MessageList = append(g.RumorState.MessageList, message)
+	if message.Text != ""{
+		g.RumorState.MessageList = append(g.RumorState.MessageList, message)
+	}
+
 	_, ok := g.RumorState.ArchivedMessages[message.Origin]
 
 	if ok {
