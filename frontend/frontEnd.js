@@ -7,8 +7,8 @@ function buttonClickNewMessage() {
         $.ajax({
             type: "POST",
             url: "http://localhost:8080/message",
-            data: {"value":inputText.value},
-            success:() => {
+            data: { "value": inputText.value },
+            success: () => {
                 inputText.value = ""
             }
         })
@@ -16,7 +16,7 @@ function buttonClickNewMessage() {
         alert("Message cannot be empty")
     }
 
-   
+
 }
 
 
@@ -42,10 +42,14 @@ function buttonClickNewNode() {
         $.ajax({
             type: "POST",
             url: "http://localhost:8080/node",
-            data: {"value": newAddress},
-            success:() => {
+            data: { "value": newAddress },
+            success: () => {
                 inputText.value = ""
-                getAllNodes()
+            },
+            error: (status) => {
+                if(status.status == 400){
+                    alert("You cannot add your own gossiper!")
+                }
             }
         })
     } else {
@@ -60,8 +64,6 @@ function addNewNodeToList(address) {
     let textNode = document.createTextNode(address)
     node.appendChild(textNode)
     document.getElementById("nodes").appendChild(node)
-    getAllNodes()
-
 }
 
 function checkValidIPv4(address) {
@@ -78,31 +80,61 @@ setInterval(() => {
     $.ajax({
         type: "GET",
         url: "http://localhost:8080/message",
-        dataType:'json',
+        dataType: 'json',
         success: function (data, status) {
-            for(let i = numberMessage; i < data.length; i++){
+            for (let i = numberMessage; i < data.length; i++) {
                 numberMessage++
                 let message = data[i]
                 addNewMessageToTable(message.Origin, message.Text)
             }
+
+            getAllNodes()
+            getAllOrigins()
         }
     })
 }, 1000)
 
 
-function getAllNodes(){
+function getAllNodes() {
     $.ajax({
         type: "GET",
         url: "http://localhost:8080/node",
         dataType: 'json',
-        success: function(data, status){
+        success: function (data, status) {
             let list = document.getElementById("nodes")
-            while(list.hasChildNodes()){
+            while (list.hasChildNodes()) {
                 list.removeChild(list.lastChild)
             }
-            
-            for(let peerAddr of data){
+
+            for (let peerAddr of data) {
                 addNewNodeToList(peerAddr)
+            }
+        }
+    })
+}
+
+function addNewOriginToList(origin) {
+    let node = document.createElement("LI")
+    let textNode = document.createTextNode(origin)
+    node.appendChild(textNode)
+    document.getElementById("origins").appendChild(node)
+
+
+}
+
+function getAllOrigins() {
+    $.ajax({
+        type: "GET",
+        url: "http://localhost:8080/origin",
+        dataType: 'json',
+        success: function (data, status) {
+            let list = document.getElementById("origins")
+            while (list.hasChildNodes()) {
+                list.removeChild(list.lastChild)
+            }
+
+            for (let origin of data) {
+                addNewOriginToList(origin)
             }
         }
     })
@@ -110,13 +142,14 @@ function getAllNodes(){
 
 
 getAllNodes()
+getAllOrigins()
 
 
 $.ajax({
     type: "GET",
     url: "http://localhost:8080/id",
-    success: function(data,status,xhr){
+    success: function (data, status, xhr) {
         let name = JSON.parse(data);
-        document.getElementById("nodeName").innerHTML = name.toString() 
+        document.getElementById("nodeName").innerHTML = name.toString()
     }
-  });
+});

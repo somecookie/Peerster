@@ -7,7 +7,10 @@ import (
 )
 
 type Message struct {
-	Text string
+	Text        string
+	Destination *string
+	File        *string
+	Request     *[]byte
 }
 
 //GetMessage deserialize the n first bytes of buffer to get a GetMessage
@@ -22,6 +25,11 @@ func GetMessage(buffer []byte, n int) (*Message, error) {
 }
 
 func PrintClientMessage(message *Message) {
-	fmt.Printf("CLIENT MESSAGE %s\n", message.Text)
+	if *message.Destination == ""{
+		fmt.Printf("CLIENT MESSAGE %s\n", message.Text)
+	}else{
+		fmt.Printf("CLIENT MESSAGE %s dest %s\n", message.Text, *message.Destination)
+	}
+
 }
 

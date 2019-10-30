@@ -17,6 +17,8 @@ func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, peer
 			go g.RumorMessageRoutine(receivedPacket.Rumor, peerAddr)
 		} else if receivedPacket.Status != nil {
 			go g.StatusPacketRoutine(receivedPacket.Status, peerAddr)
+		}else if receivedPacket.Private != nil{
+			go g.PrivateMessageRoutine(receivedPacket.Private, peerAddr)
 		}
 	}
 
@@ -32,7 +34,7 @@ func (g *Gossiper) SimpleMessageRoutine(message *packet.SimpleMessage, peerAddr 
 	defer g.Peers.Mutex.RUnlock()
 	PrintPeers(g)
 
-	message.RelayPeerAddr = g.gossipAddr
+	message.RelayPeerAddr = g.GossipAddr
 	for addrStr, addr := range g.Peers.Set {
 		if addr == nil || addrStr == peerAddr.String() {
 			continue
@@ -136,4 +138,23 @@ func (g *Gossiper) sendStatusPacket(peerAddr *net.UDPAddr) {
 		Status: &packet.StatusPacket{Want: g.RumorState.VectorClock},
 	}
 	g.sendMessage(gossipPacket, peerAddr)
+}
+
+//PrivateMessageRoutine handles the private messages.
+func (g *Gossiper) PrivateMessageRoutine(privateMessage *packet.PrivateMessage, from *net.UDPAddr) {
+	if privateMessage.Destination == g.Name{
+		packet.PrintPrivateMessage(privateMessage)
+	}else if privateMessage.HopLimit > 0{
+		pm:= &packet.PrivateMessage{
+			Origin:      g.Name,
+			ID:          0,
+			Text:        privateMessage.Text,
+			Destination: privateMessage.Destination,
+			HopLimit:    privateMessage.HopLimit - 1,
+		}
+
+		g.DSDV.Mutex.RLock()
+		g.sendMessage(&packet.GossipPacket{Private:pm}, g.DSDV.NextHop[privateMessage.Destination])
+		g.DSDV.Mutex.RUnlock()
+	}
 }

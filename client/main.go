@@ -13,11 +13,13 @@ var (
 	msg          string
 	gossiperAddr string
 	clientAddr   string
+	dest string
 )
 
 func init() {
 	flag.StringVar(&uiPort, "UIPort", "8080", "port for the UI client (default \"8080\")")
-	flag.StringVar(&msg, "msg", "", "message to be sent")
+	flag.StringVar(&msg, "msg", "", "message to be sent: if the -dest flag is present, this is a private message, otherwise it's a rumor message")
+	flag.StringVar(&dest, "dest", "", "destination for the private message; can be omitted")
 	flag.StringVar(&gossiperAddr, "gossipAddr", "127.0.0.1", "ip address of the gossiper")
 	flag.Parse()
 	gossiperAddr += ":" + uiPort
@@ -26,7 +28,12 @@ func init() {
 func main() {
 	udpAddr, conn := connectUDP()
 	defer conn.Close()
-	packetBytes, err := packet.GetPacketBytes(&packet.Message{Text: msg})
+	packetBytes, err := packet.GetPacketBytes(&packet.Message{
+		Text:        msg,
+		Destination: &dest,
+		File:        nil,
+		Request:     nil,
+	})
 	helper.HandleCrashingErr(err)
 	sendPacket(conn, packetBytes, udpAddr)
 }

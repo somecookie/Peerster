@@ -12,7 +12,7 @@ import (
 )
 
 type Gossiper struct {
-	gossipAddr  string
+	GossipAddr  string
 	Name        string
 	Peers       PeersSet
 	simple      bool
@@ -77,11 +77,13 @@ func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simp
 	}
 
 	for _, addr := range peers {
-		peersSet.Add(addr)
+		if addr.String() != gossipAddr{
+			peersSet.Add(addr)
+		}
 	}
 
 	return &Gossiper{
-		gossipAddr:  gossipAddr,
+		GossipAddr:  gossipAddr,
 		Name:        name,
 		Peers:       peersSet,
 		simple:      simple,
@@ -97,11 +99,13 @@ func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simp
 }
 
 //sendMessage sends the GossipPacket created by the gossiper based on the message received from the client
-func (g *Gossiper) sendMessage(gossipPacket *packet.GossipPacket, addr *net.UDPAddr) {
+//GossipPacket is the packet we want to send
+//dest is the destination address
+func (g *Gossiper) sendMessage(gossipPacket *packet.GossipPacket, dest *net.UDPAddr) {
 	packetBytes, err := packet.GetPacketBytes(gossipPacket)
 	helper.LogError(err)
 	if err == nil {
-		_, err := g.connGossip.WriteToUDP(packetBytes, addr)
+		_, err := g.connGossip.WriteToUDP(packetBytes, dest)
 		helper.LogError(err)
 	}
 
@@ -135,9 +139,12 @@ func (g *Gossiper) GossiperListener() {
 			receivedPacket, err := packet.GetGossipPacket(buffer, n)
 
 			if err == nil {
-				g.Peers.Mutex.Lock()
-				g.Peers.Add(peerAddr)
-				g.Peers.Mutex.Unlock()
+				if peerAddr.String() != g.GossipAddr {
+					g.Peers.Mutex.Lock()
+					g.Peers.Add(peerAddr)
+					g.Peers.Mutex.Unlock()
+				}
+
 				g.GossipPacketHandler(receivedPacket, peerAddr)
 			}
 		}
@@ -215,7 +222,6 @@ func (g *Gossiper) updateArchive(message *packet.RumorMessage) {
 //pasAddr is the address of the node that sent us the message
 //dstAddr is used when we want to send the rumor message to a given address
 func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool, pastAddr *net.UDPAddr, dstAddr *net.UDPAddr) {
-
 	g.Peers.Mutex.RLock()
 	nbrPeers := len(g.Peers.Set)
 	g.Peers.Mutex.RUnlock()
@@ -313,3 +319,6 @@ func (g *Gossiper) createNewRouteRumor() *packet.RumorMessage {
 	g.UpdateRumorState(routeRumorMessage)
 	return routeRumorMessage
 }
+
+
+

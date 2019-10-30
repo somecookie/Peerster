@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"github.com/somecookie/Peerster/gossip"
 	"github.com/somecookie/Peerster/helper"
 	"net"
@@ -27,7 +26,6 @@ func init() {
 	flag.IntVar(&rtimer,"rtimer", 0, "Timeout in seconds to send route rumors. 0 (default) means disable sending route rumors")
 	flag.BoolVar(&runGUI, "runGUI", false, "allow to access a gui from this gossiper")
 	flag.Parse()
-	fmt.Println(rtimer)
 	handleFlags(*peersStr, *gossipAddr, *uiPort, *name, *simple)
 
 }

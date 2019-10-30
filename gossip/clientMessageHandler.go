@@ -7,15 +7,24 @@ import (
 
 //HandleMessage is used to handle the messages that come from the client
 func (g *Gossiper) HandleMessage(message *packet.Message) {
+	if *message.Destination == g.Name{
+		return
+	}
+
 	packet.PrintClientMessage(message)
 	if g.simple {
 		go g.sendSimpleMessage(message)
 	} else {
-		go g.startRumor(message)
+		if *message.Destination == ""{
+			go g.startRumor(message)
+		}else{
+			go g.startPrivate(message)
+		}
+
 	}
 }
 
-//startRumor starts a new rumor when the gossiper receives a message from the client
+//startRumor starts a new rumor when the gossiper receives a message from the client which is not a private message.
 func (g *Gossiper) startRumor(message *packet.Message) {
 
 	atomic.AddUint32(&g.counter, 1)
@@ -40,7 +49,7 @@ func (g *Gossiper) startRumor(message *packet.Message) {
 func (g *Gossiper) sendSimpleMessage(message *packet.Message) {
 	simpleMessage := &packet.SimpleMessage{
 		OriginalName:  g.Name,
-		RelayPeerAddr: g.gossipAddr,
+		RelayPeerAddr: g.GossipAddr,
 		Contents:      message.Text,
 	}
 
@@ -52,4 +61,22 @@ func (g *Gossiper) sendSimpleMessage(message *packet.Message) {
 		}
 		g.sendMessage(&packet.GossipPacket{Simple: simpleMessage}, addr)
 	}
+}
+
+//startPrivate starts a private chat between g.Name and message.Destination
+func (g *Gossiper) startPrivate(message *packet.Message) {
+
+	pm:= &packet.PrivateMessage{
+		Origin:      g.Name,
+		ID:          0,
+		Text:        message.Text,
+		Destination: *message.Destination,
+		HopLimit:    packet.MaxHops - 1,
+	}
+
+	g.DSDV.Mutex.RLock()
+	g.sendMessage(&packet.GossipPacket{Private:pm}, g.DSDV.NextHop[*message.Destination])
+	g.DSDV.Mutex.RUnlock()
+
+
 }

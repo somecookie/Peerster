@@ -56,6 +56,16 @@ func (dsdv DSDV) Update(rumorMessage *packet.RumorMessage, from *net.UDPAddr){
 	}
 }
 
+//GetOrigins retrieves a list of node Origins identifier.
+func (dsdv DSDV) GetOrigins() []string{
+	origins := make([]string, 0, len(dsdv.NextHop))
+	for origin, _ := range dsdv.NextHop{
+		origins = append(origins, origin)
+	}
+
+	return origins
+}
+
 //PrintUpdateDSVD prints the message "DSDV <peer_name> <ip:port> when the the DSDV routing table is updated.
 func PrintUpdateDSVD(origin string, from *net.UDPAddr){
 	fmt.Printf("DSDV %s %s\n", origin, from.String())

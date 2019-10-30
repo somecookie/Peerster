@@ -31,6 +31,11 @@ func nodeHandler(w http.ResponseWriter, request *http.Request) {
 		err := request.ParseForm()
 		if err == nil {
 			peerAddrStr := request.Form.Get("value")
+
+			if peerAddrStr == g.GossipAddr{
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 			udpAddr, err := net.ResolveUDPAddr("udp4", peerAddrStr)
 
 			if err == nil {
@@ -41,7 +46,7 @@ func nodeHandler(w http.ResponseWriter, request *http.Request) {
 
 		}
 	default:
-		w.WriteHeader(404)
+		w.WriteHeader(http.StatusNotFound)
 	}
 }
 
@@ -70,7 +75,7 @@ func rumorMessagesHandler(w http.ResponseWriter, request *http.Request) {
 			g.HandleMessage(&rm)
 		}
 	default:
-		w.WriteHeader(404)
+		w.WriteHeader(http.StatusNotFound)
 	}
 }
 
@@ -87,7 +92,28 @@ func IDHandler(w http.ResponseWriter, request *http.Request) {
 		}
 
 	default:
-		w.WriteHeader(404)
+		w.WriteHeader(http.StatusNotFound)
+
+	}
+}
+
+func originHandler(w http.ResponseWriter, r *http.Request){
+	enableCors(&w)
+	switch r.Method {
+	case "GET":
+		g.DSDV.Mutex.RLock()
+		orgins := g.DSDV.GetOrigins()
+		g.DSDV.Mutex.RUnlock()
+
+		originsAsJSON, err := json.Marshal(orgins)
+		if err == nil{
+			w.WriteHeader(http.StatusOK)
+			w.Write(originsAsJSON)
+		}else{
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	default:
+		w.WriteHeader(http.StatusNotFound)
 
 	}
 }
@@ -102,6 +128,7 @@ func HandleServerGUI() {
 	http.HandleFunc("/id", IDHandler)
 	http.HandleFunc("/message", rumorMessagesHandler)
 	http.HandleFunc("/node", nodeHandler)
+	http.HandleFunc("/origin", originHandler)
 	for {
 		err := http.ListenAndServe(serverAddr, nil)
 		helper.LogError(err)
