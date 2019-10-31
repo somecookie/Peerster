@@ -47,7 +47,6 @@ func (g *Gossiper) WaitForAck(message *packet.RumorMessage, peerAddr *net.UDPAdd
 		g.pendingACK.Mutex.Lock()
 		g.RemoveACKed(ack, peerAddr)
 		g.pendingACK.Mutex.Unlock()
-
 		g.StatusPacketHandler(sp.Want, peerAddr, message)
 	}
 }

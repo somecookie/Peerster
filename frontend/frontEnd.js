@@ -2,13 +2,17 @@ let numberMessage = 0
 
 function buttonClickNewMessage() {
     let inputText = document.getElementById("newMessage")
+    
 
     if (inputText.value != "") {
         $.ajax({
             type: "POST",
             url: "http://localhost:8080/message",
-            data: { "value": inputText.value },
+            data: { "value": inputText.value},
             success: () => {
+                inputText.value = ""
+            }, error: (status) => {
+                console.log(status)
                 inputText.value = ""
             }
         })
@@ -106,7 +110,7 @@ function getAllNodes() {
                 list.removeChild(list.lastChild)
             }
 
-            for (let peerAddr of data) {
+            for (let peerAddr of data.sort()) {
                 addNewNodeToList(peerAddr)
             }
         }
@@ -133,12 +137,13 @@ function getAllOrigins() {
                 list.removeChild(list.lastChild)
             }
 
-            for (let origin of data) {
+            for (let origin of data.sort()) {
                 addNewOriginToList(origin)
             }
         }
     })
 }
+
 
 
 getAllNodes()

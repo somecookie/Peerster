@@ -1,0 +1,1 @@
+./Peerster -UIPort=8080 -antiEntropy=0 -gossipAddr=127.0.0.1:5000 -name=NodeA -peers= -rtimer=0 -runGUI

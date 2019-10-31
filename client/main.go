@@ -28,12 +28,22 @@ func init() {
 func main() {
 	udpAddr, conn := connectUDP()
 	defer conn.Close()
-	packetBytes, err := packet.GetPacketBytes(&packet.Message{
+
+	msg := &packet.Message{
 		Text:        msg,
 		Destination: &dest,
 		File:        nil,
 		Request:     nil,
-	})
+	}
+
+	if dest == ""{
+		msg.Destination = nil
+	}
+
+	packetBytes, err := packet.GetPacketBytes(msg)
+
+
+
 	helper.HandleCrashingErr(err)
 	sendPacket(conn, packetBytes, udpAddr)
 }

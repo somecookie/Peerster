@@ -36,9 +36,8 @@ func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simp
 			Where:        "main.go",
 		})
 	}
-	ip := ipPort[0]
 
-	udpAddrClient, err := net.ResolveUDPAddr("udp4", ip+":"+uiPort)
+	udpAddrClient, err := net.ResolveUDPAddr("udp4", "127.0.0.1:"+uiPort)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +114,7 @@ func (g *Gossiper) ClientListener() {
 
 	defer g.connClient.Close()
 
-	buffer := make([]byte, 1024)
+	buffer := make([]byte, 10000)
 	for {
 		n, _, err := g.connClient.ReadFromUDP(buffer)
 		helper.LogError(err)
@@ -132,7 +131,7 @@ func (g *Gossiper) ClientListener() {
 func (g *Gossiper) GossiperListener() {
 	defer g.connGossip.Close()
 
-	buffer := make([]byte, 1024)
+	buffer := make([]byte, 10000)
 	for {
 		n, peerAddr, err := g.connGossip.ReadFromUDP(buffer)
 		if err == nil {

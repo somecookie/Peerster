@@ -32,7 +32,7 @@ func nodeHandler(w http.ResponseWriter, request *http.Request) {
 		if err == nil {
 			peerAddrStr := request.Form.Get("value")
 
-			if peerAddrStr == g.GossipAddr{
+			if peerAddrStr == g.GossipAddr {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
@@ -71,8 +71,8 @@ func rumorMessagesHandler(w http.ResponseWriter, request *http.Request) {
 	case "POST":
 		err := request.ParseForm()
 		if err == nil {
-			rm := packet.Message{Text: request.Form.Get("value")}
-			g.HandleMessage(&rm)
+			rm := &packet.Message{Text: request.Form.Get("value")}
+			g.HandleMessage(rm)
 		}
 	default:
 		w.WriteHeader(http.StatusNotFound)
@@ -97,7 +97,7 @@ func IDHandler(w http.ResponseWriter, request *http.Request) {
 	}
 }
 
-func originHandler(w http.ResponseWriter, r *http.Request){
+func originHandler(w http.ResponseWriter, r *http.Request) {
 	enableCors(&w)
 	switch r.Method {
 	case "GET":
@@ -106,10 +106,10 @@ func originHandler(w http.ResponseWriter, r *http.Request){
 		g.DSDV.Mutex.RUnlock()
 
 		originsAsJSON, err := json.Marshal(orgins)
-		if err == nil{
+		if err == nil {
 			w.WriteHeader(http.StatusOK)
 			w.Write(originsAsJSON)
-		}else{
+		} else {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	default:

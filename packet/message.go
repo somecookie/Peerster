@@ -25,7 +25,7 @@ func GetMessage(buffer []byte, n int) (*Message, error) {
 }
 
 func PrintClientMessage(message *Message) {
-	if *message.Destination == ""{
+	if message.Destination == nil{
 		fmt.Printf("CLIENT MESSAGE %s\n", message.Text)
 	}else{
 		fmt.Printf("CLIENT MESSAGE %s dest %s\n", message.Text, *message.Destination)

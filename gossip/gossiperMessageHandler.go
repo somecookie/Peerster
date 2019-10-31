@@ -94,11 +94,26 @@ func (g *Gossiper) StatusPacketRoutine(statusPacket *packet.StatusPacket, peerAd
 	g.Peers.Mutex.RUnlock()
 
 	g.pendingACK.Mutex.RLock()
-	b := g.AckRumors(peerAddr, statusPacket)
+	acked := g.AckRumors(peerAddr, statusPacket)
 	g.pendingACK.Mutex.RUnlock()
 
-	if !b {
+	if !acked {
 		g.StatusPacketHandler(statusPacket.Want, peerAddr, nil)
+	}else{
+		//Check if S has messages that R has not seen yet
+		peerVector := statusPacket.Want
+		g.RumorState.Mutex.RLock()
+		needsToSend, _ := g.HasOther(g.RumorState.VectorClock, peerVector)
+		g.RumorState.Mutex.RUnlock()
+
+		//Check if R has messages that S has not seen yet
+		g.RumorState.Mutex.RLock()
+		wants, _ := g.HasOther(peerVector, g.RumorState.VectorClock)
+		g.RumorState.Mutex.RUnlock()
+
+		if !needsToSend && !wants{
+			packet.PrintInSync(peerAddr)
+		}
 	}
 
 }
@@ -125,7 +140,10 @@ func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr 
 		return
 	}
 
-	packet.PrintInSync(peerAddr)
+	if rumorMessage == nil {
+		packet.PrintInSync(peerAddr)
+	}
+
 
 	if rand.Int()%2 == 0 && rumorMessage != nil {
 		g.Rumormongering(rumorMessage, true, peerAddr, nil)

@@ -7,17 +7,17 @@ import (
 
 //HandleMessage is used to handle the messages that come from the client
 func (g *Gossiper) HandleMessage(message *packet.Message) {
-	if *message.Destination == g.Name{
-		return
-	}
 
 	packet.PrintClientMessage(message)
 	if g.simple {
 		go g.sendSimpleMessage(message)
 	} else {
-		if *message.Destination == ""{
+		if message.Destination == nil{
 			go g.startRumor(message)
 		}else{
+			if *message.Destination == g.Name{
+				return
+			}
 			go g.startPrivate(message)
 		}
 
