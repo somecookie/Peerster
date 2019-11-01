@@ -55,6 +55,8 @@ func (gs *GossiperState) UpdatePrivateQueue(destination string, privateMessage *
 	}
 
 	gs.PrivateQueue[destination] = append(gs.PrivateQueue[destination], *privateMessage)
+
+	fmt.Println(gs)
 }
 
 func (gs *GossiperState) updateVectorClock(message *packet.RumorMessage) {
@@ -97,11 +99,11 @@ func (gs *GossiperState) updateArchive(message *packet.RumorMessage) {
 		gs.ArchivedMessages[message.Origin] = make(map[uint32]packet.RumorMessage)
 		gs.ArchivedMessages[message.Origin][message.ID] = *message
 	}
+
+
 }
 
 func (gs *GossiperState) String() string{
-	gs.Mutex.RLock()
-	defer gs.Mutex.RUnlock()
 	s := "=======================================================================\n"
 	s += "============================Vector Clock===============================\n"
 
@@ -122,6 +124,16 @@ func (gs *GossiperState) String() string{
 	s += "=============================RumorQueue================================\n"
 	for _, msg:= range gs.RumorQueue{
 		s += fmt.Sprintf("From %s(%d): %s\n", msg.Origin, msg.ID, msg.Text)
+	}
+
+	s += "=======================================================================\n"
+	s += "===========================PrivateQueue================================\n"
+
+	for dest, queue := range gs.PrivateQueue{
+		s += fmt.Sprintf("Conversation with %s\n", dest)
+		for _, msg := range queue{
+			s += fmt.Sprintf("%s: %s\n", msg.Origin, msg.Text)
+		}
 	}
 
 	s += "======================================================================="
