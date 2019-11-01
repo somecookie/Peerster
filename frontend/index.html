@@ -1,56 +1,69 @@
 <!DOCTYPE html>
+<!--based on https://www.youtube.com/watch?v=f8el0g_rXbY-->
 
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Peerster</title>
+    <title></title>
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="">
+    <link rel="stylesheet" type="text/css" href="chat.css">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
     <script src="frontEnd.js"></script>
-    
+
 </head>
 
 <body>
-    <h1>Peerster</h1>
-    <h3>Peer ID</h3>
-    <p id="nodeName"></p>
-    <hr>
-    <div>
-        <h3>Chat box</h3>
-        <table id="chatBox" style="width:100%">
-            <tr>
-                <th>From</th>
-                <th>Message</th>
-            </tr>
+    <div id="chat-container">
+        <div id="identifier">
+            <span id="nodeName">Ricardo</span>
+        </div>
+        <div id="conversation-list">
+            <div class="conversation active">
+                <div class="title-text">
+                    Rumors
+                </div>
+            </div>
 
-        </table>
-        <button id="sendMessage" type="button">Send Message</button> <input id="newMessage" type="text" size="140"><br>
-        <hr>
+            <!-- <div class="conversation">
+                <div class="title-text">
+                    Diana
+                </div>
+            </div> -->
+        </div>
+
+        <div id="chat-title">
+            <span>Rumors</span>
+
+        </div>
+        <div id="chat-message-list">
+        </div>
+        <div id="chat-form">
+            <img src="images/addAttachment.png" alt="Add Attachment">
+            <input type="text" placeholder="type a message">
+
+        </div>
+        <div id=node-text>
+            <span>Known Nodes</span>
+        </div>
+        <div id="node-list">
+            <div class=node>127.0.0.1:5000</div>
+            <div class=node>127.0.0.1:5000</div>
+            <div class=node>127.0.0.1:5000</div>
+            <div class=node>127.0.0.1:5000</div>
+        </div>
+
+        <div id="new-node">
+            <input id="newNode" type="text" placeholder="127.0.0.1:5000">
+            <button id="addButton">+</button>
+            
+        </div>
+
     </div>
-
-    <div>
-        <h3>Known Origins</h3>
-        <ul id="origins">
-        </ul>
-    </div>
-
-    <div>
-        <h3>Known nodes</h3>
-        <ul id="nodes">
-        </ul>
-        <button id="addNode" type="button">Add Node</button> <input id="newNode" type="text"><br>
-    </div>
-
-    
-    <hr>
 
     <script>
-        document.getElementById("sendMessage").onclick = buttonClickNewMessage
-        document.getElementById("addNode").onclick = buttonClickNewNode
-    </script>
+            document.getElementById("addButton").onclick = buttonClickNewNode
+        </script>
 </body>
-
 
 </html>

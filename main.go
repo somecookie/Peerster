@@ -4,8 +4,10 @@ import (
 	"flag"
 	"github.com/somecookie/Peerster/gossip"
 	"github.com/somecookie/Peerster/helper"
+	"math/rand"
 	"net"
 	"strings"
+	"time"
 )
 
 var g *gossip.Gossiper
@@ -27,6 +29,8 @@ func init() {
 	flag.BoolVar(&runGUI, "runGUI", false, "allow to access a gui from this gossiper")
 	flag.Parse()
 	handleFlags(*peersStr, *gossipAddr, *uiPort, *name, *simple)
+
+	rand.Seed(time.Now().UTC().UnixNano()*1000)
 
 }
 

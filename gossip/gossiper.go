@@ -76,7 +76,7 @@ func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simp
 	}
 
 	for _, addr := range peers {
-		if addr.String() != gossipAddr{
+		if addr.String() != gossipAddr {
 			peersSet.Add(addr)
 		}
 	}
@@ -200,7 +200,7 @@ func (g *Gossiper) updateVectorClock(message *packet.RumorMessage) {
 }
 
 func (g *Gossiper) updateArchive(message *packet.RumorMessage) {
-	if message.Text != ""{
+	if message.Text != "" {
 		g.RumorState.MessageList = append(g.RumorState.MessageList, message)
 	}
 
@@ -225,10 +225,25 @@ func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool
 	nbrPeers := len(g.Peers.Set)
 	g.Peers.Mutex.RUnlock()
 
-	if nbrPeers == 0 || (nbrPeers == 1 && pastAddr != nil) {
+	/*if nbrPeers == 0 || (nbrPeers == 1 && pastAddr != nil) {
+			return
+	}
+
+	peerAddr := g.SelectNewPeer(dstAddr, pastAddr)
+	*/
+
+	if nbrPeers == 0 {
 		return
 	}
-	peerAddr := g.SelectNewPeer(dstAddr, pastAddr)
+
+	peerAddr := dstAddr
+
+	if dstAddr == nil {
+		g.Peers.Mutex.RLock()
+		peerAddr = g.Peers.Random()
+		g.Peers.Mutex.RUnlock()
+	}
+
 	packet.PrintMongering(peerAddr)
 	g.sendMessage(&packet.GossipPacket{Rumor: message}, peerAddr)
 
@@ -238,7 +253,7 @@ func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool
 	go g.WaitForAck(message, peerAddr)
 }
 
-//SelectNewPeer chooses a new peer that is different than the last chosen peer
+/*//SelectNewPeer chooses a new peer that is different than the last chosen peer
 //This method is thread-safe.
 func (g *Gossiper) SelectNewPeer(dstAddr *net.UDPAddr, pastAddr *net.UDPAddr) *net.UDPAddr {
 	peerAddr := dstAddr
@@ -256,7 +271,7 @@ func (g *Gossiper) SelectNewPeer(dstAddr *net.UDPAddr, pastAddr *net.UDPAddr) *n
 		}
 	}
 	return peerAddr
-}
+}*/
 
 //AntiEntropyRoutine sends the anti-entropy Status Packet every g.antiEntropy seconds
 func (g *Gossiper) AntiEntropyRoutine() {
@@ -290,16 +305,16 @@ func (g *Gossiper) RouteRumorRoutine() {
 
 	routeRumorMessage := g.createNewRouteRumor()
 
-	for _,peer := range peers{
-		g.Rumormongering(routeRumorMessage,false,nil,peer)
+	for _, peer := range peers {
+		g.Rumormongering(routeRumorMessage, false, nil, peer)
 	}
 
 	ticker := time.NewTicker(g.rtimer * time.Second)
 	defer ticker.Stop()
 
-	for{
+	for {
 		select {
-		case <- ticker.C:
+		case <-ticker.C:
 			routeRumorMessage := g.createNewRouteRumor()
 			g.Rumormongering(routeRumorMessage, false, nil, nil)
 		}
@@ -318,6 +333,3 @@ func (g *Gossiper) createNewRouteRumor() *packet.RumorMessage {
 	g.UpdateRumorState(routeRumorMessage)
 	return routeRumorMessage
 }
-
-
-

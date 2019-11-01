@@ -8,7 +8,7 @@ cd ..
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
-DEBUG="false"
+DEBUG="true"
 
 outputFiles=()
 message_c1_1=Weather_is_clear
@@ -49,7 +49,7 @@ sleep 1
 ./client/client -UIPort=12346 -msg=$message_c2_2
 ./client/client -UIPort=12351 -msg=$message_c3
 
-sleep 64
+sleep 80
 pkill -f Peerster
 
 
@@ -59,22 +59,27 @@ failed="F"
 echo -e "${RED}###CHECK that client messages arrived${NC}"
 
 if !(grep -q "CLIENT MESSAGE $message_c1_1" "E.out") ; then
+  echo "CLIENT MESSAGE $message_c1_1" "E.out"
 	failed="T"
 fi
 
 if !(grep -q "CLIENT MESSAGE $message_c1_2" "E.out") ; then
+  echo "CLIENT MESSAGE $message_c1_2" "E.out"
 	failed="T"
 fi
 
 if !(grep -q "CLIENT MESSAGE $message_c2_1" "B.out") ; then
+    echo "CLIENT MESSAGE $message_c2_1" "B.out"
     failed="T"
 fi
 
 if !(grep -q "CLIENT MESSAGE $message_c2_2" "B.out") ; then
+    echo "CLIENT MESSAGE $message_c2_2" "B.out"
     failed="T"
 fi
 
 if !(grep -q "CLIENT MESSAGE $message_c3" "G.out") ; then
+    echo "CLIENT MESSAGE $message_c3" "G.out"
     failed="T"
 fi
 
@@ -103,24 +108,29 @@ do
 
 	if [[ "$gossipPort" != 5004 ]] ; then
 		if !(grep -Eq "$msgLine1" "${outputFiles[$i]}") ; then
+		      echo "$msgLine1" "${outputFiles[$i]}"
         	failed="T"
     	fi
 		if !(grep -Eq "$msgLine2" "${outputFiles[$i]}") ; then
+		      echo "$msgLine2" "${outputFiles[$i]}"
         	failed="T"
     	fi
 	fi
 
 	if [[ "$gossipPort" != 5001 ]] ; then
 		if !(grep -Eq "$msgLine3" "${outputFiles[$i]}") ; then
+		      echo "$msgLine3" "${outputFiles[$i]}"
         	failed="T"
     	fi
 		if !(grep -Eq "$msgLine4" "${outputFiles[$i]}") ; then
+		      echo "$msgLine4" "${outputFiles[$i]}"
         	failed="T"
     	fi
 	fi
 	
 	if [[ "$gossipPort" != 5006 ]] ; then
 		if !(grep -Eq "$msgLine5" "${outputFiles[$i]}") ; then
+		      echo "$msgLine5" "${outputFiles[$i]}"
         	failed="T"
     	fi
 	fi
@@ -148,6 +158,8 @@ do
     msgLine2="MONGERING with 127.0.0.1:$nextPort"
 
     if !(grep -q "$msgLine1" "${outputFiles[$i]}") && !(grep -q "$msgLine2" "${outputFiles[$i]}") ; then
+        echo "$msgLine1" "${outputFiles[$i]}"
+        echo "$msgLine2" "${outputFiles[$i]}"
         failed="T"
     fi
     gossipPort=$(($gossipPort+1))
@@ -178,18 +190,23 @@ do
 	msgLine5="peer G nextID 2"	
 
 	if !(grep -q "$msgLine1" "${outputFiles[$i]}") ; then
+	      echo "$msgLine1" "${outputFiles[$i]}"
         failed="T"
     fi
     if !(grep -q "$msgLine2" "${outputFiles[$i]}") ; then
+        echo "$msgLine2" "${outputFiles[$i]}"
         failed="T"
     fi
     if !(grep -q "$msgLine3" "${outputFiles[$i]}") ; then
+        echo "$msgLine3" "${outputFiles[$i]}"
         failed="T"
     fi
     if !(grep -q "$msgLine4" "${outputFiles[$i]}") ; then
+        echo "$msgLine4" "${outputFiles[$i]}"
         failed="T"
     fi
     if !(grep -q "$msgLine5" "${outputFiles[$i]}") ; then
+        echo "$msgLine5" "${outputFiles[$i]}"
         failed="T"
     fi
 	gossipPort=$(($gossipPort+1))
@@ -216,9 +233,11 @@ do
     msgLine2="FLIPPED COIN sending rumor to 127.0.0.1:$nextPort"
 
     if !(grep -q "$msgLine1" "${outputFiles[$i]}") ; then
+        echo "$msgLine1" "${outputFiles[$i]}"
         failed="T"
     fi
     if !(grep -q "$msgLine2" "${outputFiles[$i]}") ; then
+        echo "$msgLine2" "${outputFiles[$i]}"
         failed="T"
     fi
 	gossipPort=$(($gossipPort+1))
@@ -246,9 +265,11 @@ do
     msgLine2="IN SYNC WITH 127.0.0.1:$nextPort"
 
     if !(grep -q "$msgLine1" "${outputFiles[$i]}") ; then
+        echo "$msgLine1" "${outputFiles[$i]}"
         failed="T"
     fi
     if !(grep -q "$msgLine2" "${outputFiles[$i]}") ; then
+        echo "$msgLine2" "${outputFiles[$i]}"
         failed="T"
     fi
 	gossipPort=$(($gossipPort+1))
@@ -275,6 +296,8 @@ do
 	peersLine2="127.0.0.1:$nextPort,127.0.0.1:$relayPort"
 
     if !(grep -q "$peersLine1" "${outputFiles[$i]}") && !(grep -q "$peersLine2" "${outputFiles[$i]}") ; then
+        echo "$peersLine1" "${outputFiles[$i]}"
+        echo "$peersLine2" "${outputFiles[$i]}"
         failed="T"
     fi
 	gossipPort=$(($gossipPort+1))

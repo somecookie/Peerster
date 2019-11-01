@@ -1,4 +1,6 @@
 let numberMessage = 0
+let myID = ""
+let active = "General"
 
 function buttonClickNewMessage() {
     let inputText = document.getElementById("newMessage")
@@ -24,19 +26,27 @@ function buttonClickNewMessage() {
 }
 
 
-function addNewMessageToTable(origin, content) {
-    let table = document.getElementById("chatBox")
-    let row = table.insertRow(table.rows.length)
-    let from = row.insertCell(0)
-    let message = row.insertCell(1)
+function addNewMessage(origin, content) {
+    let messageList = document.getElementById("chat-message-list")
+    let messageRow = document.createElement("div")
+    if(origin === myID){
+        messageRow.className = "message-row you-message"
+    }else{
+        messageRow.className = "message-row other-message"
+    }
+    let messageText = document.createElement("div")
+    messageText.className = "message-text"
+    messageText.innerHTML = content
+    
+    let messageOrigin = document.createElement("div")
+    messageOrigin.className = "message-origin"
+    messageOrigin.innerHTML = origin
+    
+    messageRow.appendChild(messageText)
+    messageRow.appendChild(messageOrigin)
 
-    from.innerHTML = origin
+    messageList.insertAdjacentElement('afterbegin', messageRow)
 
-    let paragraph = document.createElement("p")
-    let node = document.createTextNode(content)
-    paragraph.appendChild(node)
-
-    message.appendChild(paragraph)
 }
 
 function buttonClickNewNode() {
@@ -57,18 +67,12 @@ function buttonClickNewNode() {
             }
         })
     } else {
-        alert("Wrong format for the address")
+        alert(`${newAddress} has not a valid format`)
     }
 
     inputText.value = ""
 }
 
-function addNewNodeToList(address) {
-    let node = document.createElement("LI")
-    let textNode = document.createTextNode(address)
-    node.appendChild(textNode)
-    document.getElementById("nodes").appendChild(node)
-}
 
 function checkValidIPv4(address) {
     ipPort = address.split(":")
@@ -89,11 +93,12 @@ setInterval(() => {
             for (let i = numberMessage; i < data.length; i++) {
                 numberMessage++
                 let message = data[i]
-                addNewMessageToTable(message.Origin, message.Text)
+                addNewMessage(message.Origin, message.Text)
+
             }
 
             getAllNodes()
-            getAllOrigins()
+            //getAllOrigins()
         }
     })
 }, 1000)
@@ -105,13 +110,17 @@ function getAllNodes() {
         url: "http://localhost:8080/node",
         dataType: 'json',
         success: function (data, status) {
-            let list = document.getElementById("nodes")
+            let list = document.getElementById("node-list")
+
             while (list.hasChildNodes()) {
                 list.removeChild(list.lastChild)
             }
 
             for (let peerAddr of data.sort()) {
-                addNewNodeToList(peerAddr)
+                let addrDiv = document.createElement("div")
+                addrDiv.className = "node"
+                addrDiv.innerHTML = `${peerAddr}`
+                list.appendChild(addrDiv)
             }
         }
     })
@@ -155,6 +164,7 @@ $.ajax({
     url: "http://localhost:8080/id",
     success: function (data, status, xhr) {
         let name = JSON.parse(data);
-        document.getElementById("nodeName").innerHTML = name.toString()
+        myID = name.toString()
+        document.getElementById("nodeName").innerHTML = myID.substring(0,12)
     }
 });
