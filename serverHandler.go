@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
+	"github.com/somecookie/Peerster/fileSharing"
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
 	"net"
@@ -119,7 +119,7 @@ func shareFileHandler(writer http.ResponseWriter, request *http.Request) {
 		err := request.ParseForm()
 		if err == nil {
 			fileName := request.Form.Get("fileName")
-			fmt.Println(fileName)
+			fileSharing.FileMetadataFactory(fileName)
 
 		}
 
