@@ -4,13 +4,13 @@ let active = "General"
 
 function buttonClickNewMessage() {
     let inputText = document.getElementById("newMessage")
-    
+
 
     if (inputText.value != "") {
         $.ajax({
             type: "POST",
             url: "http://localhost:8080/message",
-            data: { "value": inputText.value},
+            data: { "value": inputText.value },
             success: () => {
                 inputText.value = ""
             }, error: (status) => {
@@ -29,19 +29,19 @@ function buttonClickNewMessage() {
 function addNewMessage(origin, content) {
     let messageList = document.getElementById("chat-message-list")
     let messageRow = document.createElement("div")
-    if(origin === myID){
+    if (origin === myID) {
         messageRow.className = "message-row you-message"
-    }else{
+    } else {
         messageRow.className = "message-row other-message"
     }
     let messageText = document.createElement("div")
     messageText.className = "message-text"
     messageText.innerHTML = content
-    
+
     let messageOrigin = document.createElement("div")
     messageOrigin.className = "message-origin"
     messageOrigin.innerHTML = origin
-    
+
     messageRow.appendChild(messageText)
     messageRow.appendChild(messageOrigin)
 
@@ -61,7 +61,7 @@ function buttonClickNewNode() {
                 inputText.value = ""
             },
             error: (status) => {
-                if(status.status == 400){
+                if (status.status == 400) {
                     alert("You cannot add your own gossiper!")
                 }
             }
@@ -136,6 +136,15 @@ function addNewOriginToList(origin) {
 
 }
 
+function fileSelectionHandler(e) {
+
+    let file = e.target.files[0]
+    let fileName = file.name
+    let fileSize = file.size
+    console.log(fileName)
+
+}
+
 /*
 function getAllOrigins() {
     $.ajax({
@@ -168,6 +177,6 @@ $.ajax({
         console.log(data)
         let name = JSON.parse(data);
         myID = name.toString()
-        document.getElementById("nodeName").innerHTML = myID.substring(0,12)
+        document.getElementById("nodeName").innerHTML = myID.substring(0, 12)
     }
 });

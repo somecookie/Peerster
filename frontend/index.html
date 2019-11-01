@@ -39,7 +39,8 @@
         <div id="chat-message-list">
         </div>
         <div id="chat-form">
-            <img src="images/addAttachment.png" alt="Add Attachment">
+            <img src="images/addAttachment.png" alt="Add Attachment" id="fileShare">
+            <input id="file-input" type="file" style="display: none;" />
             <input type="text" placeholder="type a message">
 
         </div>
@@ -63,6 +64,10 @@
 
     <script>
             document.getElementById("addButton").onclick = buttonClickNewNode
+            document.getElementById("fileShare").onclick = () => {
+                document.getElementById('file-input').click();
+            }
+            document.getElementById("file-input").onchange =  e => fileSelectionHandler(e)
         </script>
 </body>
 

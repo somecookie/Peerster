@@ -13,7 +13,8 @@ var (
 	msg          string
 	gossiperAddr string
 	clientAddr   string
-	dest string
+	dest         string
+	filePath     string
 )
 
 func init() {
@@ -21,6 +22,9 @@ func init() {
 	flag.StringVar(&msg, "msg", "", "message to be sent: if the -dest flag is present, this is a private message, otherwise it's a rumor message")
 	flag.StringVar(&dest, "dest", "", "destination for the private message; can be omitted")
 	flag.StringVar(&gossiperAddr, "gossipAddr", "127.0.0.1", "ip address of the gossiper")
+	//if we have the flag -file=flyingDrone.gif then the absolute path of the file is $CWD/_SharedFiles/flyingDrone.gif
+	//where $CWD is the absolute path of the executable of the gossiper
+	flag.StringVar(&filePath, "file", "", "file to be indexed by the gossiper")
 	flag.Parse()
 	gossiperAddr += ":" + uiPort
 }
@@ -36,13 +40,11 @@ func main() {
 		Request:     nil,
 	}
 
-	if dest == ""{
+	if dest == "" {
 		msg.Destination = nil
 	}
 
 	packetBytes, err := packet.GetPacketBytes(msg)
-
-
 
 	helper.HandleCrashingErr(err)
 	sendPacket(conn, packetBytes, udpAddr)
