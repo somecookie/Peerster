@@ -14,10 +14,7 @@ func nodeHandler(w http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case "GET":
 		g.Peers.Mutex.RLock()
-		keys := make([]string, 0, len(g.Peers.Set))
-		for k := range g.Peers.Set {
-			keys = append(keys, k)
-		}
+		keys := g.Peers.PeersSetAsList()
 		g.Peers.Mutex.RUnlock()
 
 		jsonValue, err := json.Marshal(keys)
@@ -50,18 +47,16 @@ func nodeHandler(w http.ResponseWriter, request *http.Request) {
 	}
 }
 
+
+
 func rumorMessagesHandler(w http.ResponseWriter, request *http.Request) {
 	enableCors(&w)
 	switch request.Method {
 	case "GET":
-		g.RumorState.Mutex.RLock()
-		rmlist := make([]packet.RumorMessage, 0, len(g.RumorState.MessageList))
-		for _, msgptr := range g.RumorState.MessageList {
-			rmlist = append(rmlist, *msgptr)
-		}
-		g.RumorState.Mutex.RUnlock()
+		g.State.Mutex.RLock()
+		jsonValue, err := json.Marshal(g.State.RumorQueue)
+		g.State.Mutex.RUnlock()
 
-		jsonValue, err := json.Marshal(rmlist)
 		if err == nil {
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonValue)

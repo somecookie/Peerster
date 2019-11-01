@@ -59,7 +59,9 @@ func (g *Gossiper) RumorMessageRoutine(message *packet.RumorMessage, peerAddr *n
 	PrintPeers(g)
 	g.Peers.Mutex.RUnlock()
 
+	g.State.Mutex.RLock()
 	nextID := g.GetNextID(message.Origin)
+	g.State.Mutex.RUnlock()
 
 	if message.ID >= nextID && message.Origin != g.Name {
 
@@ -67,18 +69,20 @@ func (g *Gossiper) RumorMessageRoutine(message *packet.RumorMessage, peerAddr *n
 		g.DSDV.Update(message, peerAddr)
 		g.DSDV.Mutex.Unlock()
 
-		g.UpdateRumorState(message)
+		g.State.UpdateGossiperState(message)
 
-		g.RumorState.Mutex.RLock()
+		g.State.Mutex.RLock()
 		g.sendStatusPacket(peerAddr)
-		g.RumorState.Mutex.RUnlock()
+		g.State.Mutex.RUnlock()
 
 		g.Rumormongering(message, false, peerAddr, nil)
-	} else {
-		g.RumorState.Mutex.RLock()
+	}else{
+		g.State.Mutex.RLock()
 		g.sendStatusPacket(peerAddr)
-		g.RumorState.Mutex.RUnlock()
+		g.State.Mutex.RUnlock()
 	}
+
+
 }
 
 //StatusPacketRoutine handles the incoming StatusPacket.
@@ -102,14 +106,14 @@ func (g *Gossiper) StatusPacketRoutine(statusPacket *packet.StatusPacket, peerAd
 	}else{
 		//Check if S has messages that R has not seen yet
 		peerVector := statusPacket.Want
-		g.RumorState.Mutex.RLock()
-		needsToSend, _ := g.HasOther(g.RumorState.VectorClock, peerVector)
-		g.RumorState.Mutex.RUnlock()
+		g.State.Mutex.RLock()
+		needsToSend, _ := g.HasOther(g.State.VectorClock, peerVector)
+		g.State.Mutex.RUnlock()
 
 		//Check if R has messages that S has not seen yet
-		g.RumorState.Mutex.RLock()
-		wants, _ := g.HasOther(peerVector, g.RumorState.VectorClock)
-		g.RumorState.Mutex.RUnlock()
+		g.State.Mutex.RLock()
+		wants, _ := g.HasOther(peerVector, g.State.VectorClock)
+		g.State.Mutex.RUnlock()
 
 		if !needsToSend && !wants{
 			packet.PrintInSync(peerAddr)
@@ -120,23 +124,23 @@ func (g *Gossiper) StatusPacketRoutine(statusPacket *packet.StatusPacket, peerAd
 
 func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr *net.UDPAddr, rumorMessage *packet.RumorMessage) {
 	//Check if S has messages that R has not seen yet
-	g.RumorState.Mutex.RLock()
-	b, msg := g.HasOther(g.RumorState.VectorClock, peerVector)
-	g.RumorState.Mutex.RUnlock()
+	g.State.Mutex.RLock()
+	b, msg := g.HasOther(g.State.VectorClock, peerVector)
+	g.State.Mutex.RUnlock()
 
 	if b {
 		g.Rumormongering(msg, false, nil, peerAddr)
 		return
 	}
 	//Check if R has messages that S has not seen yet
-	g.RumorState.Mutex.RLock()
-	b, _ = g.HasOther(peerVector, g.RumorState.VectorClock)
-	g.RumorState.Mutex.RUnlock()
+	g.State.Mutex.RLock()
+	b, _ = g.HasOther(peerVector, g.State.VectorClock)
+	g.State.Mutex.RUnlock()
 
 	if b {
-		g.RumorState.Mutex.RLock()
+		g.State.Mutex.RLock()
 		g.sendStatusPacket(peerAddr)
-		g.RumorState.Mutex.RUnlock()
+		g.State.Mutex.RUnlock()
 		return
 	}
 
@@ -153,7 +157,7 @@ func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr 
 //sendStatusPacket sends a StatusPacket to peerAddr that serves as an ACK to the RumorMessage.
 func (g *Gossiper) sendStatusPacket(peerAddr *net.UDPAddr) {
 	gossipPacket := &packet.GossipPacket{
-		Status: &packet.StatusPacket{Want: g.RumorState.VectorClock},
+		Status: &packet.StatusPacket{Want: g.State.VectorClock},
 	}
 	g.sendMessage(gossipPacket, peerAddr)
 }
@@ -171,8 +175,12 @@ func (g *Gossiper) PrivateMessageRoutine(privateMessage *packet.PrivateMessage, 
 			HopLimit:    privateMessage.HopLimit - 1,
 		}
 
+
+
 		g.DSDV.Mutex.RLock()
-		g.sendMessage(&packet.GossipPacket{Private:pm}, g.DSDV.NextHop[privateMessage.Destination])
+		if g.DSDV.Contains(privateMessage.Destination){
+			g.sendMessage(&packet.GossipPacket{Private:pm}, g.DSDV.NextHop[privateMessage.Destination])
+		}
 		g.DSDV.Mutex.RUnlock()
 	}
 }

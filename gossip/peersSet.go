@@ -68,6 +68,14 @@ func (ps* PeersSet) PeersSetAsList() []*net.UDPAddr{
 	return ls
 }
 
+//PeersSetAsList returns the values of the PeersSet as a list of ip:port (as string)
+func (ps PeersSet) PeersAsStringList() []string {
+	keys := make([]string, 0, len(ps.Set))
+	for k := range ps.Set {
+		keys = append(keys, k)
+	}
+	return keys
+}
 
 func PrintPeers(g *Gossiper) {
 	fmt.Printf("PEERS %s\n", g.Peers.String())

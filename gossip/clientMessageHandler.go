@@ -33,7 +33,7 @@ func (g *Gossiper) startRumor(message *packet.Message) {
 		ID:     g.counter,
 		Text:   message.Text,
 	}
-	g.UpdateRumorState(rumorMessage)
+	g.State.UpdateGossiperState(rumorMessage)
 
 	g.Peers.Mutex.RLock()
 	length := len(g.Peers.Set)

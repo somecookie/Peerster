@@ -27,6 +27,12 @@ func DSDVFactory() DSDV {
 	}
 }
 
+//Contains verifies if the given origin is already in the next-hop routing table
+func (dsdv DSDV) Contains(origin string) bool{
+	_, ok := dsdv.NextHop[origin]
+	return ok
+}
+
 //Update updates the next-hop table and the destination sequence number.
 //rumorMessage is the newly arrived rumorMessage.
 //from is the address from which the rumor message arrived.

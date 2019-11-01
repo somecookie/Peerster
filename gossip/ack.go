@@ -38,11 +38,22 @@ func (g *Gossiper) WaitForAck(message *packet.RumorMessage, peerAddr *net.UDPAdd
 
 	select {
 	case <-ticker.C:
-		g.Rumormongering(message, false, nil, nil)
-
 		g.pendingACK.Mutex.Lock()
 		g.RemoveACKed(ack, peerAddr)
 		g.pendingACK.Mutex.Unlock()
+
+		g.Peers.Mutex.RLock()
+		nbrPeers := len(g.Peers.Set)
+		destination := peerAddr
+		if nbrPeers == 0{
+			return
+		}else if nbrPeers > 1{
+			destination = g.SelectNewPeer(peerAddr)
+		}
+		g.Peers.Mutex.RUnlock()
+
+		g.Rumormongering(message, false, nil, destination)
+
 	case sp := <-ack.AckedChannel:
 		g.pendingACK.Mutex.Lock()
 		g.RemoveACKed(ack, peerAddr)
@@ -88,8 +99,8 @@ func (g *Gossiper) HasOther(thisVC, thatVC []packet.PeerStatus) (bool, *packet.R
 				if sVC.NextID > rVC.NextID {
 					nextID := rVC.NextID
 					origin := rVC.Identifier
-					message := g.RumorState.ArchivedMessages[origin][nextID]
-					return true, message
+					message := g.State.ArchivedMessages[origin][nextID]
+					return true, &message
 
 				}
 			}
@@ -98,8 +109,8 @@ func (g *Gossiper) HasOther(thisVC, thatVC []packet.PeerStatus) (bool, *packet.R
 		if !inOtherVC {
 			nextID := uint32(1)
 			origin := sVC.Identifier
-			message := g.RumorState.ArchivedMessages[origin][nextID]
-			return true, message
+			message := g.State.ArchivedMessages[origin][nextID]
+			return true, &message
 		}
 	}
 	return false, nil

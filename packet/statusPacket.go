@@ -3,7 +3,6 @@ package packet
 import (
 	"fmt"
 	"net"
-	"sync"
 )
 
 type StatusPacket struct {
@@ -17,13 +16,6 @@ type PeerStatus struct {
 
 func (p PeerStatus) String() string {
 	return fmt.Sprintf("Identifier %s with ID %d", p.Identifier, p.NextID)
-}
-
-type RumorState struct {
-	VectorClock      []PeerStatus
-	ArchivedMessages map[string]map[uint32]*RumorMessage
-	MessageList      []*RumorMessage
-	Mutex            sync.RWMutex
 }
 
 func PrintStatusPacket(packet *StatusPacket, peerAddr *net.UDPAddr) {
