@@ -33,15 +33,11 @@ func GossiperStateFactory() *GossiperState{
 }
 
 //UpdateGossiperState updates the vector clock and the archives.
-//This method is thread-safe, no need to lock when using it.
 func (gs *GossiperState) UpdateGossiperState(message *packet.RumorMessage) {
-	gs.Mutex.Lock()
 	gs.updateVectorClock(message)
-	gs.Mutex.Unlock()
 
-	gs.Mutex.Lock()
 	gs.updateArchive(message)
-	gs.Mutex.Unlock()
+
 }
 
 //UpdatePrivateQueue enqueues the private message to the corresponding queue.
@@ -56,7 +52,6 @@ func (gs *GossiperState) UpdatePrivateQueue(destination string, privateMessage *
 
 	gs.PrivateQueue[destination] = append(gs.PrivateQueue[destination], *privateMessage)
 
-	fmt.Println(gs)
 }
 
 func (gs *GossiperState) updateVectorClock(message *packet.RumorMessage) {
@@ -87,18 +82,23 @@ func (gs *GossiperState) updateVectorClock(message *packet.RumorMessage) {
 }
 
 func (gs *GossiperState) updateArchive(message *packet.RumorMessage) {
-	if message.Text != "" {
-		gs.RumorQueue = append(gs.RumorQueue, *message)
-	}
 
 	_, ok := gs.ArchivedMessages[message.Origin]
 
-	if ok {
-		gs.ArchivedMessages[message.Origin][message.ID] = *message
-	} else {
+	if !ok {
 		gs.ArchivedMessages[message.Origin] = make(map[uint32]packet.RumorMessage)
-		gs.ArchivedMessages[message.Origin][message.ID] = *message
 	}
+
+	_, ok = gs.ArchivedMessages[message.Origin][message.ID]
+
+	if !ok {
+		gs.ArchivedMessages[message.Origin][message.ID] = *message
+
+		if message.Text != ""{
+			gs.RumorQueue = append(gs.RumorQueue, *message)
+		}
+	}
+
 
 
 }

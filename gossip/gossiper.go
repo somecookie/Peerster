@@ -23,7 +23,7 @@ type Gossiper struct {
 	counter     uint32
 	antiEntropy time.Duration
 	rtimer      time.Duration
-	DSDV        routing.DSDV
+	DSDV        *routing.DSDV
 }
 
 //GossiperFactory creates a Gossiper from the parsed flags of main.go.
@@ -159,29 +159,16 @@ func (g *Gossiper) GetNextID(origin string) uint32 {
 //pasAddr is the address of the node that sent us the message
 //dstAddr is used when we want to send the rumor message to a given address
 func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool, pastAddr *net.UDPAddr, dstAddr *net.UDPAddr) {
+
 	g.Peers.Mutex.RLock()
 	nbrPeers := len(g.Peers.Set)
-	g.Peers.Mutex.RUnlock()
 
-	/*if nbrPeers == 0 || (nbrPeers == 1 && pastAddr != nil) {
-			return
-	}
-
-	peerAddr := g.SelectNewPeer(dstAddr, pastAddr)
-	*/
-
-	if nbrPeers == 0 {
+	if nbrPeers == 0 || (nbrPeers == 1 && pastAddr != nil) {
+		g.Peers.Mutex.RUnlock()
 		return
 	}
-
-	peerAddr := dstAddr
-
-	if dstAddr == nil {
-		g.Peers.Mutex.RLock()
-		peerAddr = g.Peers.Random()
-		g.Peers.Mutex.RUnlock()
-	}
-
+	peerAddr := g.SelectNewPeer(dstAddr, pastAddr)
+	g.Peers.Mutex.RUnlock()
 
 	g.sendMessage(&packet.GossipPacket{Rumor: message}, peerAddr)
 
@@ -193,13 +180,15 @@ func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool
 	go g.WaitForAck(message, peerAddr)
 }
 
-//SelectNewPeer chooses a new peer that is different than pastAddr the last chosen peer
-func (g *Gossiper) SelectNewPeer(pastAddr *net.UDPAddr) *net.UDPAddr {
-	peerAddr := g.Peers.Random()
+func (g *Gossiper) SelectNewPeer(dstAddr *net.UDPAddr, pastAddr *net.UDPAddr) *net.UDPAddr {
+	peerAddr := dstAddr
+	if dstAddr == nil {
+		peerAddr = g.Peers.Random()
 
-	if peerAddr == pastAddr {
-		for peerAddr == pastAddr {
-			peerAddr = g.Peers.Random()
+		if peerAddr == pastAddr {
+			for peerAddr == pastAddr {
+				peerAddr = g.Peers.Random()
+			}
 		}
 	}
 	return peerAddr
@@ -212,15 +201,10 @@ func (g *Gossiper) AntiEntropyRoutine() {
 	for {
 		select {
 		case <-ticker.C:
-
-			g.Peers.Mutex.RLock()
 			peerAddr := g.Peers.Random()
-			g.Peers.Mutex.RUnlock()
 
 			if peerAddr != nil {
-				g.State.Mutex.RLock()
 				g.sendStatusPacket(peerAddr)
-				g.State.Mutex.RUnlock()
 			}
 
 		}
@@ -231,9 +215,7 @@ func (g *Gossiper) AntiEntropyRoutine() {
 //It starts by sending a route rumor message.
 func (g *Gossiper) RouteRumorRoutine() {
 
-	g.Peers.Mutex.RLock()
 	peers := g.Peers.PeersSetAsList()
-	g.Peers.Mutex.RUnlock()
 
 	routeRumorMessage := g.createNewRouteRumor()
 

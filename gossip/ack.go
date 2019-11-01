@@ -38,26 +38,18 @@ func (g *Gossiper) WaitForAck(message *packet.RumorMessage, peerAddr *net.UDPAdd
 
 	select {
 	case <-ticker.C:
+
 		g.pendingACK.Mutex.Lock()
 		g.RemoveACKed(ack, peerAddr)
 		g.pendingACK.Mutex.Unlock()
 
-		g.Peers.Mutex.RLock()
-		nbrPeers := len(g.Peers.Set)
-		destination := peerAddr
-		if nbrPeers == 0{
-			return
-		}else if nbrPeers > 1{
-			destination = g.SelectNewPeer(peerAddr)
-		}
-		g.Peers.Mutex.RUnlock()
-
-		g.Rumormongering(message, false, nil, destination)
+		g.Rumormongering(message, false, nil, nil)
 
 	case sp := <-ack.AckedChannel:
 		g.pendingACK.Mutex.Lock()
 		g.RemoveACKed(ack, peerAddr)
 		g.pendingACK.Mutex.Unlock()
+
 		g.StatusPacketHandler(sp.Want, peerAddr, message)
 	}
 }

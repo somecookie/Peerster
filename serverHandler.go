@@ -13,11 +13,11 @@ func nodeHandler(w http.ResponseWriter, request *http.Request) {
 	enableCors(&w)
 	switch request.Method {
 	case "GET":
+
 		g.Peers.Mutex.RLock()
-		keys := g.Peers.PeersSetAsList()
+		jsonValue, err := json.Marshal(g.Peers.PeersAsStringList())
 		g.Peers.Mutex.RUnlock()
 
-		jsonValue, err := json.Marshal(keys)
 		if err == nil {
 			w.WriteHeader(http.StatusOK)
 			w.Write(jsonValue)
@@ -97,10 +97,8 @@ func originHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		g.DSDV.Mutex.RLock()
-		orgins := g.DSDV.GetOrigins()
+		originsAsJSON, err := json.Marshal(g.DSDV.GetOrigins())
 		g.DSDV.Mutex.RUnlock()
-
-		originsAsJSON, err := json.Marshal(orgins)
 		if err == nil {
 			w.WriteHeader(http.StatusOK)
 			w.Write(originsAsJSON)

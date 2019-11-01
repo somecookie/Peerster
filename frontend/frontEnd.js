@@ -111,6 +111,7 @@ function getAllNodes() {
         dataType: 'json',
         success: function (data, status) {
             let list = document.getElementById("node-list")
+            console.log(data)
 
             while (list.hasChildNodes()) {
                 list.removeChild(list.lastChild)
@@ -135,6 +136,7 @@ function addNewOriginToList(origin) {
 
 }
 
+/*
 function getAllOrigins() {
     $.ajax({
         type: "GET",
@@ -151,18 +153,19 @@ function getAllOrigins() {
             }
         }
     })
-}
+}*/
 
 
 
 getAllNodes()
-getAllOrigins()
+//getAllOrigins()
 
 
 $.ajax({
     type: "GET",
     url: "http://localhost:8080/id",
     success: function (data, status, xhr) {
+        console.log(data)
         let name = JSON.parse(data);
         myID = name.toString()
         document.getElementById("nodeName").innerHTML = myID.substring(0,12)

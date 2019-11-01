@@ -19,8 +19,8 @@ type DSDV struct{
 }
 
 //DSDVFactory is a factory to create a new empty DSDV.
-func DSDVFactory() DSDV {
-	return DSDV{
+func DSDVFactory() *DSDV {
+	return &DSDV{
 		NextHop: make(map[string]*net.UDPAddr),
 		DstSeq:  make(map[string]uint32),
 		Mutex:   sync.RWMutex{},
@@ -28,7 +28,7 @@ func DSDVFactory() DSDV {
 }
 
 //Contains verifies if the given origin is already in the next-hop routing table
-func (dsdv DSDV) Contains(origin string) bool{
+func (dsdv *DSDV) Contains(origin string) bool{
 	_, ok := dsdv.NextHop[origin]
 	return ok
 }
@@ -36,7 +36,7 @@ func (dsdv DSDV) Contains(origin string) bool{
 //Update updates the next-hop table and the destination sequence number.
 //rumorMessage is the newly arrived rumorMessage.
 //from is the address from which the rumor message arrived.
-func (dsdv DSDV) Update(rumorMessage *packet.RumorMessage, from *net.UDPAddr){
+func (dsdv *DSDV) Update(rumorMessage *packet.RumorMessage, from *net.UDPAddr){
 	origin := rumorMessage.Origin
 	id := rumorMessage.ID
 	_, ok := dsdv.NextHop[origin]
@@ -63,7 +63,7 @@ func (dsdv DSDV) Update(rumorMessage *packet.RumorMessage, from *net.UDPAddr){
 }
 
 //GetOrigins retrieves a list of node Origins identifier.
-func (dsdv DSDV) GetOrigins() []string{
+func (dsdv *DSDV) GetOrigins() []string{
 	origins := make([]string, 0, len(dsdv.NextHop))
 	for origin, _ := range dsdv.NextHop{
 		origins = append(origins, origin)
@@ -78,7 +78,7 @@ func PrintUpdateDSVD(origin string, from *net.UDPAddr){
 }
 
 //DSDV implements the function of the interface String
-func (dsdv DSDV) String() string{
+func (dsdv *DSDV) String() string{
 	s := "Origin - Next-Hop - Sequence-Number\n"
 	for origin, nexthop := range dsdv.NextHop{
 		s += fmt.Sprintf("%s - %s - %d\n", origin, nexthop.String(), dsdv.DstSeq[origin])

@@ -28,13 +28,14 @@ func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, peer
 //It first prints the message and g's Peers.
 //Finally it forwards message to all g's Peers (except peerAddr)
 func (g *Gossiper) SimpleMessageRoutine(message *packet.SimpleMessage, peerAddr *net.UDPAddr) {
-	packet.PrintSimpleMessage(message)
-
 	g.Peers.Mutex.RLock()
 	defer g.Peers.Mutex.RUnlock()
+
+	packet.PrintSimpleMessage(message)
 	PrintPeers(g)
 
 	message.RelayPeerAddr = g.GossipAddr
+
 	for addrStr, addr := range g.Peers.Set {
 		if addr == nil || addrStr == peerAddr.String() {
 			continue
@@ -59,27 +60,23 @@ func (g *Gossiper) RumorMessageRoutine(message *packet.RumorMessage, peerAddr *n
 	PrintPeers(g)
 	g.Peers.Mutex.RUnlock()
 
-	g.State.Mutex.RLock()
-	nextID := g.GetNextID(message.Origin)
-	g.State.Mutex.RUnlock()
 
-	if message.ID >= nextID && message.Origin != g.Name {
+	g.State.Mutex.Lock()
+	if message.ID >=  g.GetNextID(message.Origin) && message.Origin != g.Name {
 
 		g.DSDV.Mutex.Lock()
 		g.DSDV.Update(message, peerAddr)
 		g.DSDV.Mutex.Unlock()
 
 		g.State.UpdateGossiperState(message)
-
-		g.State.Mutex.RLock()
 		g.sendStatusPacket(peerAddr)
-		g.State.Mutex.RUnlock()
+		g.State.Mutex.Unlock()
 
 		g.Rumormongering(message, false, peerAddr, nil)
 	}else{
-		g.State.Mutex.RLock()
+
 		g.sendStatusPacket(peerAddr)
-		g.State.Mutex.RUnlock()
+		g.State.Mutex.Unlock()
 	}
 
 
@@ -104,14 +101,12 @@ func (g *Gossiper) StatusPacketRoutine(statusPacket *packet.StatusPacket, peerAd
 	if !acked {
 		g.StatusPacketHandler(statusPacket.Want, peerAddr, nil)
 	}else{
+		g.State.Mutex.RLock()
 		//Check if S has messages that R has not seen yet
 		peerVector := statusPacket.Want
-		g.State.Mutex.RLock()
 		needsToSend, _ := g.HasOther(g.State.VectorClock, peerVector)
-		g.State.Mutex.RUnlock()
 
 		//Check if R has messages that S has not seen yet
-		g.State.Mutex.RLock()
 		wants, _ := g.HasOther(peerVector, g.State.VectorClock)
 		g.State.Mutex.RUnlock()
 
@@ -123,26 +118,27 @@ func (g *Gossiper) StatusPacketRoutine(statusPacket *packet.StatusPacket, peerAd
 }
 
 func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr *net.UDPAddr, rumorMessage *packet.RumorMessage) {
-	//Check if S has messages that R has not seen yet
+
 	g.State.Mutex.RLock()
+	//Check if S has messages that R has not seen yet
 	b, msg := g.HasOther(g.State.VectorClock, peerVector)
-	g.State.Mutex.RUnlock()
 
 	if b {
+		g.State.Mutex.RUnlock()
 		g.Rumormongering(msg, false, nil, peerAddr)
 		return
 	}
 	//Check if R has messages that S has not seen yet
-	g.State.Mutex.RLock()
-	b, _ = g.HasOther(peerVector, g.State.VectorClock)
-	g.State.Mutex.RUnlock()
+	b, msg = g.HasOther(peerVector, g.State.VectorClock)
 
 	if b {
-		g.State.Mutex.RLock()
+
 		g.sendStatusPacket(peerAddr)
 		g.State.Mutex.RUnlock()
 		return
 	}
+	g.State.Mutex.RUnlock()
+
 
 	if rumorMessage == nil {
 		packet.PrintInSync(peerAddr)
@@ -170,22 +166,14 @@ func (g *Gossiper) PrivateMessageRoutine(privateMessage *packet.PrivateMessage, 
 
 		g.State.Mutex.Lock()
 		g.State.UpdatePrivateQueue(privateMessage.Origin, privateMessage)
-		g.State.Mutex.Lock()
+		g.State.Mutex.Unlock()
 
 	}else if privateMessage.HopLimit > 0{
-		pm:= &packet.PrivateMessage{
-			Origin:      g.Name,
-			ID:          0,
-			Text:        privateMessage.Text,
-			Destination: privateMessage.Destination,
-			HopLimit:    privateMessage.HopLimit - 1,
-		}
-
-
+		privateMessage.HopLimit -=1
 
 		g.DSDV.Mutex.RLock()
 		if g.DSDV.Contains(privateMessage.Destination){
-			g.sendMessage(&packet.GossipPacket{Private:pm}, g.DSDV.NextHop[privateMessage.Destination])
+			g.sendMessage(&packet.GossipPacket{Private:privateMessage}, g.DSDV.NextHop[privateMessage.Destination])
 		}
 		g.DSDV.Mutex.RUnlock()
 	}

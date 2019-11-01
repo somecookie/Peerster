@@ -35,9 +35,8 @@ func (g *Gossiper) startRumor(message *packet.Message) {
 	}
 	g.State.UpdateGossiperState(rumorMessage)
 
-	g.Peers.Mutex.RLock()
 	length := len(g.Peers.Set)
-	g.Peers.Mutex.RUnlock()
+
 
 	if length > 0 {
 		g.Rumormongering(rumorMessage, false, nil, nil)
@@ -55,6 +54,7 @@ func (g *Gossiper) sendSimpleMessage(message *packet.Message) {
 
 	g.Peers.Mutex.RLock()
 	defer g.Peers.Mutex.RUnlock()
+
 	for _,addr := range g.Peers.Set {
 		if addr == nil {
 			continue
@@ -74,13 +74,9 @@ func (g *Gossiper) startPrivate(message *packet.Message) {
 		HopLimit:    packet.MaxHops - 1,
 	}
 
-	g.DSDV.Mutex.RLock()
 	g.sendMessage(&packet.GossipPacket{Private:pm}, g.DSDV.NextHop[*message.Destination])
-	g.DSDV.Mutex.RUnlock()
 
 	g.State.Mutex.Lock()
 	g.State.UpdatePrivateQueue(*message.Destination, pm)
-	g.State.Mutex.Lock()
-
-
+	g.State.Mutex.Unlock()
 }
