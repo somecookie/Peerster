@@ -11,7 +11,7 @@ import (
 //VectorClock: The list of all the next rumor messages per origin that the gossiper may receive
 //ArchivedMessages: contains all messages received by all other peers
 //RumorQueue: a queue of all rumor messages received. The purpose of this queue is to be sent to the GUI
-//PrivateQueue: a map that maps each origin to a queue of all the private messages with that origin.
+//PrivateQueue: maps each origin to a queue of all the private messages with that origin.
 type GossiperState struct {
 	VectorClock      []packet.PeerStatus
 	ArchivedMessages map[string]map[uint32]packet.RumorMessage
@@ -42,6 +42,19 @@ func (gs *GossiperState) UpdateGossiperState(message *packet.RumorMessage) {
 	gs.Mutex.Lock()
 	gs.updateArchive(message)
 	gs.Mutex.Unlock()
+}
+
+//UpdatePrivateQueue enqueues the private message to the corresponding queue.
+//The destination parameter is needed when you add you own message to the queue.
+//This method is not thread-safe.
+func (gs *GossiperState) UpdatePrivateQueue(destination string, privateMessage *packet.PrivateMessage){
+	_, ok := gs.PrivateQueue[destination]
+
+	if !ok{
+		gs.PrivateQueue[destination] = make([]packet.PrivateMessage, 0, 1)
+	}
+
+	gs.PrivateQueue[destination] = append(gs.PrivateQueue[destination], *privateMessage)
 }
 
 func (gs *GossiperState) updateVectorClock(message *packet.RumorMessage) {

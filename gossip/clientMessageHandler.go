@@ -78,5 +78,9 @@ func (g *Gossiper) startPrivate(message *packet.Message) {
 	g.sendMessage(&packet.GossipPacket{Private:pm}, g.DSDV.NextHop[*message.Destination])
 	g.DSDV.Mutex.RUnlock()
 
+	g.State.Mutex.Lock()
+	g.State.UpdatePrivateQueue(*message.Destination, pm)
+	g.State.Mutex.Lock()
+
 
 }

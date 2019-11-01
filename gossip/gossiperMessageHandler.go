@@ -165,7 +165,13 @@ func (g *Gossiper) sendStatusPacket(peerAddr *net.UDPAddr) {
 //PrivateMessageRoutine handles the private messages.
 func (g *Gossiper) PrivateMessageRoutine(privateMessage *packet.PrivateMessage, from *net.UDPAddr) {
 	if privateMessage.Destination == g.Name{
+
 		packet.PrintPrivateMessage(privateMessage)
+
+		g.State.Mutex.Lock()
+		g.State.UpdatePrivateQueue(privateMessage.Origin, privateMessage)
+		g.State.Mutex.Lock()
+
 	}else if privateMessage.HopLimit > 0{
 		pm:= &packet.PrivateMessage{
 			Origin:      g.Name,
