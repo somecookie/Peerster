@@ -139,9 +139,11 @@ function addNewOriginToList(origin) {
 function fileSelectionHandler(e) {
 
     let file = e.target.files[0]
-    let fileName = file.name
-    let fileSize = file.size
-    console.log(fileName)
+    $.ajax({
+        type: "POST",
+        url: "http://localhost:8080/shareFile",
+        data: { "fileName": file.name },
+    })
 
 }
 

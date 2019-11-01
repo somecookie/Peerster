@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
 	"net"
@@ -111,6 +112,23 @@ func originHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func shareFileHandler(writer http.ResponseWriter, request *http.Request) {
+	enableCors(&writer)
+	switch request.Method {
+	case "POST":
+		err := request.ParseForm()
+		if err == nil {
+			fileName := request.Form.Get("fileName")
+			fmt.Println(fileName)
+
+		}
+
+	default:
+		writer.WriteHeader(http.StatusNotFound)
+	}
+}
+
+
 func enableCors(w *http.ResponseWriter) {
 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
 }
@@ -122,8 +140,10 @@ func HandleServerGUI() {
 	http.HandleFunc("/message", rumorMessagesHandler)
 	http.HandleFunc("/node", nodeHandler)
 	http.HandleFunc("/origin", originHandler)
+	http.HandleFunc("/shareFile", shareFileHandler)
 	for {
 		err := http.ListenAndServe(serverAddr, nil)
 		helper.LogError(err)
 	}
 }
+
