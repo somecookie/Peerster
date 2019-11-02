@@ -1,6 +1,8 @@
 package gossip
 
 import (
+	"encoding/hex"
+	"github.com/somecookie/Peerster/fileSharing"
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
 	"github.com/somecookie/Peerster/routing"
@@ -24,6 +26,7 @@ type Gossiper struct {
 	antiEntropy time.Duration
 	rtimer      time.Duration
 	DSDV        *routing.DSDV
+	FilesIndex  *sync.Map //This map is a mapping from string (the metahash) to fileSharing.Metadata
 }
 
 //GossiperFactory creates a Gossiper from the parsed flags of main.go.
@@ -86,6 +89,7 @@ func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simp
 		antiEntropy: time.Duration(antiEntropy),
 		rtimer:      time.Duration(rtimer),
 		DSDV:        routing.DSDVFactory(),
+		FilesIndex:  new(sync.Map),
 	}, nil
 }
 
@@ -174,7 +178,7 @@ func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool
 
 	if flippedCoin {
 		packet.PrintFlippedCoin(peerAddr)
-	}else{
+	} else {
 		packet.PrintMongering(peerAddr)
 	}
 	go g.WaitForAck(message, peerAddr)
@@ -246,4 +250,15 @@ func (g *Gossiper) createNewRouteRumor() *packet.RumorMessage {
 	}
 	g.State.UpdateGossiperState(routeRumorMessage)
 	return routeRumorMessage
+}
+
+//IndexFile indexes the file at _SharedFiles called.
+//It creates the metadata of the file and stores it in the sync.Map called FilesIndex.
+func (g *Gossiper) IndexFile(fileName string){
+	metadata, err := fileSharing.MetadataFromIndexing(fileName)
+	helper.LogError(err)
+	if err == nil{
+		metaHashString := hex.EncodeToString(metadata.MetaHash)
+		g.FilesIndex.Store(metaHashString, metadata)
+	}
 }
