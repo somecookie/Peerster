@@ -27,6 +27,8 @@ type Gossiper struct {
 	rtimer      time.Duration
 	DSDV        *routing.DSDV
 	FilesIndex  *sync.Map //This map is a mapping from string (the metahash) to fileSharing.Metadata
+	Requested   fileSharing.DownloadState //represents the files the gossiper has requested
+	Shared      fileSharing.DownloadState //represents the files requested by other peers
 }
 
 //GossiperFactory creates a Gossiper from the parsed flags of main.go.
@@ -254,10 +256,10 @@ func (g *Gossiper) createNewRouteRumor() *packet.RumorMessage {
 
 //IndexFile indexes the file at _SharedFiles called.
 //It creates the metadata of the file and stores it in the sync.Map called FilesIndex.
-func (g *Gossiper) IndexFile(fileName string){
+func (g *Gossiper) IndexFile(fileName string) {
 	metadata, err := fileSharing.MetadataFromIndexing(fileName)
 	helper.LogError(err)
-	if err == nil{
+	if err == nil {
 		metaHashString := hex.EncodeToString(metadata.MetaHash)
 		g.FilesIndex.Store(metaHashString, metadata)
 	}

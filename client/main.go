@@ -1,20 +1,24 @@
 package main
 
 import (
+	"encoding/hex"
 	"flag"
+	"fmt"
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
 	"log"
 	"net"
+	"os"
 )
 
 var (
-	uiPort       string
-	msg          string
-	gossiperAddr string
-	clientAddr   string
-	dest         string
-	filePath     string
+	uiPort        string
+	msg           string
+	gossiperAddr  string
+	clientAddr    string
+	dest          string
+	fileName      string
+	requestString string
 )
 
 func init() {
@@ -22,9 +26,8 @@ func init() {
 	flag.StringVar(&msg, "msg", "", "message to be sent: if the -dest flag is present, this is a private message, otherwise it's a rumor message")
 	flag.StringVar(&dest, "dest", "", "destination for the private message; can be omitted")
 	flag.StringVar(&gossiperAddr, "gossipAddr", "127.0.0.1", "ip address of the gossiper")
-	//if we have the flag -file=flyingDrone.gif then the absolute path of the file is $CWD/_SharedFiles/flyingDrone.gif
-	//where $CWD is the absolute path of the executable of the gossiper
-	flag.StringVar(&filePath, "file", "", "file to be indexed by the gossiper")
+	flag.StringVar(&fileName, "file", "", "file to be indexed by the gossiper")
+	flag.StringVar(&requestString, "request", "", "requestString a chunk or metafile of this hash")
 	flag.Parse()
 	gossiperAddr += ":" + uiPort
 }
@@ -34,14 +37,26 @@ func main() {
 	defer conn.Close()
 
 	msg := &packet.Message{
-		Text:        msg,
-		Destination: &dest,
-		File:        nil,
-		Request:     nil,
+		Text:msg,
 	}
 
-	if dest == "" {
-		msg.Destination = nil
+	if requestString != ""{
+		request, err := hex.DecodeString(requestString)
+		if err != nil || len(request) != 32{
+			//os.Stderr.WriteString("ERROR (Unable to decode hex hash)")
+			fmt.Println("ERROR (Unable to decode hex hash)")
+			os.Exit(1)
+		}
+
+		msg.Request = &request
+	}
+
+	if dest != "" {
+		msg.Destination = &dest
+	}
+
+	if fileName != ""{
+		msg.File = &fileName
 	}
 
 	packetBytes, err := packet.GetPacketBytes(msg)
