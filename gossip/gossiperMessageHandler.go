@@ -1,6 +1,7 @@
 package gossip
 
 import (
+	"fmt"
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
 	"math/rand"
@@ -8,6 +9,7 @@ import (
 )
 
 func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, peerAddr *net.UDPAddr) {
+	fmt.Println(g.State)
 	if g.simple {
 		if receivedPacket.Simple != nil {
 			go g.SimpleMessageRoutine(receivedPacket.Simple, peerAddr)
@@ -129,7 +131,7 @@ func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr 
 		return
 	}
 	//Check if R has messages that S has not seen yet
-	b, msg = g.HasOther(peerVector, g.State.VectorClock)
+	b, _ = g.HasOther(peerVector, g.State.VectorClock)
 
 	if b {
 

@@ -210,7 +210,9 @@ func (g *Gossiper) AntiEntropyRoutine() {
 			peerAddr := g.Peers.Random()
 
 			if peerAddr != nil {
+				g.State.Mutex.RLock()
 				g.sendStatusPacket(peerAddr)
+				g.State.Mutex.RUnlock()
 			}
 
 		}
