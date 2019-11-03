@@ -13,13 +13,13 @@ import (
 //The name of the file
 //The size of the file
 //The Metafile is the concatenation of the sha256 of each files
-//MetafileMap is a map used to know if the chunk with the hash is already indexed
+//Chunks is a map used to store the chunks mapped to its hash
 //The MetaHash, i.e., the hash of the metafile. The metahash is the only unique identifier of the file.
 type Metadata struct {
 	Name        string
 	Size        uint32
 	Metafile    []byte
-	MetafileMap map[string]bool
+	Chunks map[string][]byte
 	MetaHash    []byte
 }
 
@@ -30,8 +30,9 @@ var hasher = sha256.New()
 
 //MetadataFromIndexing builds the metadata for a file and index it.
 func MetadataFromIndexing(fileName string) (*Metadata, error) {
-	fileMetadata := &Metadata{Name: fileName}
-	fileMetadata.MetafileMap = make(map[string]bool)
+	metadata := &Metadata{Name: fileName}
+	metadata.Chunks = make(map[string][]byte)
+
 	filePath := PATH_SHAREDFILES + fileName
 	file, err := os.Open(filePath)
 	helper.LogError(err)
@@ -44,7 +45,7 @@ func MetadataFromIndexing(fileName string) (*Metadata, error) {
 		for {
 			n, err := file.Read(chunk)
 
-			if err == io.EOF {
+			if err == io.EOF{
 				break
 			}
 
@@ -54,38 +55,36 @@ func MetadataFromIndexing(fileName string) (*Metadata, error) {
 			}
 
 			if n > 0 {
-				hash, err := fileMetadata.hashAndStore(fileName, chunk[:n], false)
+				hash, err := metadata.hash(chunk[:n])
 
 				if err != nil {
 					helper.LogError(err)
 					return nil, err
 				}
+
+				metadata.Chunks[hex.EncodeToString(hash)] = chunk[:n]
 				metafileSlice = append(metafileSlice, hash...)
 			}
 
 		}
 
-		fileMetadata.Size = uint32(len(metafileSlice))
-
-		metaHash, err := fileMetadata.hashAndStore(fileName, metafileSlice, true)
-
+		metadata.Size = uint32(len(metafileSlice))
+		metaHash, err := metadata.hash(metafileSlice)
 		if err != nil {
 			helper.LogError(err)
 			return nil, err
 		}
-		fileMetadata.MetaHash = metaHash
-		fileMetadata.Metafile = metafileSlice
-		return fileMetadata, nil
+		metadata.MetaHash = metaHash
+		metadata.Metafile = metafileSlice
+
+		return metadata, nil
 	}
 
 	return nil, err
 }
 
-//hashAndStore stores the chunk at _SharedFiles/.chunks/fileName/hash_of_chunk
-//It returns the hash (as []byte) of the chunk or an error.
-//If metafile is true, the name of the stored filed is metafile
-func (metadata *Metadata) hashAndStore(fileName string, chunk []byte, metafile bool) ([]byte, error) {
-
+//hash returns the hash (as []byte) of the chunk or an error.
+func (metadata *Metadata) hash(chunk []byte) ([]byte, error) {
 	//hash
 	hasher.Reset()
 	_, err := hasher.Write(chunk)
@@ -94,51 +93,5 @@ func (metadata *Metadata) hashAndStore(fileName string, chunk []byte, metafile b
 		return nil, err
 	}
 	hash := hasher.Sum(nil)
-
-	//checks if the directory .chunks exists, if not it creates it
-	path := PATH_SHAREDFILES + ".chunks"
-	if err := mkdirIsNotExist(path); err != nil {
-		return nil, err
-	}
-
-	//checks if the directory _SharedFiles/.chunks/fileName/ exists, if not it creates it
-	path += "/" + fileName
-	if err := mkdirIsNotExist(PATH_SHAREDFILES + ".chunks/" + fileName); err != nil {
-		return nil, err
-	}
-	//store
-	if metafile {
-		path += "/metafile"
-	} else {
-		path += "/" + hex.EncodeToString(hash)
-	}
-
-	fw, err := os.Create(path)
-	defer fw.Close()
-
-	if err != nil {
-		return nil, err
-	}
-
-	if _, err := fw.Write(chunk); err != nil {
-		return nil, err
-	}
-
-	metadata.MetafileMap[hex.EncodeToString(hash)] = true
 	return hash, nil
-}
-
-//mkdirIsNotExist checks if the path exists and makes a directory if it is not the case.
-func mkdirIsNotExist(path string) error {
-	if _, err := os.Stat(path); err != nil {
-		if os.IsNotExist(err) {
-			if err := os.Mkdir(path, 0775); err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
-	}
-
-	return nil
 }
