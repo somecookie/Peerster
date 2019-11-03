@@ -7,22 +7,39 @@ import (
 
 //HandleMessage is used to handle the messages that come from the client
 func (g *Gossiper) HandleMessage(message *packet.Message) {
+/*
+	if dest != "" && fileName != "" && requestString != "" && msg == ""{
+		return true //download
+	}else if dest != "" && fileName == "" && requestString == "" && msg != ""{
+		return true //private message
+	}else if dest == "" && fileName != "" && requestString == "" && msg == ""{
+		return true //file sharing
+	} else if dest == "" && fileName == "" && requestString == "" && msg != ""{
+		return true //rumor message
+	}else{
+		return false
+	}*/
 
-	packet.PrintClientMessage(message)
-	if g.simple {
-		go g.sendSimpleMessage(message)
-	} else {
-		if message.Destination == nil{
-			go g.startRumor(message)
+	if message.Destination == nil && message.File == nil && message.Request == nil && message.Text != ""{
+		packet.PrintClientMessage(message)
+		if g.simple{
+			go g.sendSimpleMessage(message)
 		}else{
-			if *message.Destination == g.Name{
-				return
-			}
-			go g.startPrivate(message)
+			go g.startRumor(message)
 		}
 
+	}else if message.Destination != nil && message.File == nil && message.Request == nil && message.Text != ""{
+		packet.PrintClientMessage(message)
+		go g.startPrivate(message)
+	}else if message.Destination == nil && message.File != nil && message.Request == nil && message.Text == ""{
+		//packet.PrintClientMessage(message)
+		go g.IndexFile(*message.File)
+	}else if  message.Destination != nil && message.File != nil && message.Request != nil && message.Text == ""{
+		//packet.PrintClientMessage(message)
+		//TODO go startDownload(message)
 	}
 }
+
 
 //startRumor starts a new rumor when the gossiper receives a message from the client which is not a private message.
 func (g *Gossiper) startRumor(message *packet.Message) {

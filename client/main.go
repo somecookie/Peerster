@@ -32,7 +32,28 @@ func init() {
 	gossiperAddr += ":" + uiPort
 }
 
+func validFlags()bool{
+
+	if dest != "" && fileName != "" && requestString != "" && msg == ""{
+		return true //download
+	}else if dest != "" && fileName == "" && requestString == "" && msg != ""{
+		return true //private message
+	}else if dest == "" && fileName != "" && requestString == "" && msg == ""{
+		return true //file sharing
+	} else if dest == "" && fileName == "" && requestString == "" && msg != ""{
+		return true //rumor message
+	}else{
+		return false
+	}
+}
+
 func main() {
+
+	if !validFlags(){
+		fmt.Println("ERROR (Bad argument combination)")
+		os.Exit(1)
+	}
+
 	udpAddr, conn := connectUDP()
 	defer conn.Close()
 
