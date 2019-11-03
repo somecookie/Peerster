@@ -1,29 +1,106 @@
 package gossip
 
 import (
-	"fmt"
+	"crypto/sha256"
+	"encoding/hex"
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
 	"math/rand"
 	"net"
 )
 
-func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, peerAddr *net.UDPAddr) {
-	fmt.Println(g.State)
+var hasher = sha256.New()
+
+func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, from *net.UDPAddr) {
 	if g.simple {
 		if receivedPacket.Simple != nil {
-			go g.SimpleMessageRoutine(receivedPacket.Simple, peerAddr)
+			go g.SimpleMessageRoutine(receivedPacket.Simple, from)
 		}
 	} else {
 		if receivedPacket.Rumor != nil {
-			go g.RumorMessageRoutine(receivedPacket.Rumor, peerAddr)
+			go g.RumorMessageRoutine(receivedPacket.Rumor, from)
 		} else if receivedPacket.Status != nil {
-			go g.StatusPacketRoutine(receivedPacket.Status, peerAddr)
-		}else if receivedPacket.Private != nil{
-			go g.PrivateMessageRoutine(receivedPacket.Private, peerAddr)
+			go g.StatusPacketRoutine(receivedPacket.Status, from)
+		} else if receivedPacket.Private != nil {
+			go g.PrivateMessageRoutine(receivedPacket.Private)
+		} else if receivedPacket.DataRequest != nil {
+			go g.DataRequestRoutine(receivedPacket.DataRequest)
+		} else if receivedPacket.DataReply != nil {
+			go g.DataReplyRoutine(receivedPacket.DataReply)
 		}
 	}
 
+}
+
+//DataReplyRoutine handles the incoming dataReply.
+func (g *Gossiper) DataReplyRoutine(dataReply *packet.DataReply) {
+	if dataReply.Destination == g.Name{
+
+
+
+		hasher.Reset()
+		_, err := hasher.Write(dataReply.Data)
+
+		if err != nil {
+			helper.LogError(err)
+			return
+		}
+		hash := hasher.Sum(nil)
+		receivedHashString := hex.EncodeToString(dataReply.HashValue)
+		g.Requested.Mutex.RLock()
+		if hex.EncodeToString(hash) == receivedHashString  || len(dataReply.Data) == 0 || dataReply.Data == nil{
+			if origins, ok := g.Requested.ACKs[dataReply.Origin]; ok {
+				if c, ok := origins[receivedHashString]; ok {
+					c <- dataReply
+				}
+			}
+		}
+		g.Requested.Mutex.RUnlock()
+	}else if dataReply.HopLimit > 0 {
+		dataReply.HopLimit -= 1
+
+		g.DSDV.Mutex.RLock()
+		if g.DSDV.Contains(dataReply.Destination) {
+			g.sendMessage(&packet.GossipPacket{DataReply: dataReply}, g.DSDV.NextHop[dataReply.Destination])
+		}
+		g.DSDV.Mutex.RUnlock()
+	}
+
+}
+
+//DataRequestRoutine handles the incoming request.
+//It either discards the packet when the hop-limit is 0,
+//or if the destination is the gossiper, process the packet.
+func (g *Gossiper) DataRequestRoutine(dataRequest *packet.DataRequest) {
+	//fmt.Println(hex.EncodeToString(dataRequest.HashValue))
+	if dataRequest.Destination == g.Name {
+		g.FilesIndex.Mutex.RLock()
+		chunk := g.FilesIndex.FindChunkFromHash(hex.EncodeToString(dataRequest.HashValue))
+		g.FilesIndex.Mutex.RUnlock()
+
+
+		dataReply := &packet.DataReply{
+			Origin:      g.Name,
+			Destination: dataRequest.Origin,
+			HopLimit:    9,
+			HashValue:   dataRequest.HashValue,
+			Data:        chunk,}
+
+		g.DSDV.Mutex.RLock()
+		if g.DSDV.Contains(dataReply.Destination) {
+			g.sendMessage(&packet.GossipPacket{DataReply: dataReply}, g.DSDV.NextHop[dataReply.Destination])
+		}
+		g.DSDV.Mutex.RUnlock()
+
+	} else if dataRequest.HopLimit > 0 {
+		dataRequest.HopLimit -= 1
+
+		g.DSDV.Mutex.RLock()
+		if g.DSDV.Contains(dataRequest.Destination) {
+			g.sendMessage(&packet.GossipPacket{DataRequest: dataRequest}, g.DSDV.NextHop[dataRequest.Destination])
+		}
+		g.DSDV.Mutex.RUnlock()
+	}
 }
 
 //SimpleMessageRoutine handle the GossipPackets of type SimpleMessage
@@ -62,9 +139,8 @@ func (g *Gossiper) RumorMessageRoutine(message *packet.RumorMessage, peerAddr *n
 	PrintPeers(g)
 	g.Peers.Mutex.RUnlock()
 
-
 	g.State.Mutex.Lock()
-	if message.ID >=  g.GetNextID(message.Origin) && message.Origin != g.Name {
+	if message.ID >= g.GetNextID(message.Origin) && message.Origin != g.Name {
 
 		g.DSDV.Mutex.Lock()
 		g.DSDV.Update(message, peerAddr)
@@ -75,12 +151,11 @@ func (g *Gossiper) RumorMessageRoutine(message *packet.RumorMessage, peerAddr *n
 		g.State.Mutex.Unlock()
 
 		g.Rumormongering(message, false, peerAddr, nil)
-	}else{
+	} else {
 
 		g.sendStatusPacket(peerAddr)
 		g.State.Mutex.Unlock()
 	}
-
 
 }
 
@@ -102,7 +177,7 @@ func (g *Gossiper) StatusPacketRoutine(statusPacket *packet.StatusPacket, peerAd
 
 	if !acked {
 		g.StatusPacketHandler(statusPacket.Want, peerAddr, nil)
-	}else{
+	} else {
 		g.State.Mutex.RLock()
 		//Check if S has messages that R has not seen yet
 		peerVector := statusPacket.Want
@@ -112,7 +187,7 @@ func (g *Gossiper) StatusPacketRoutine(statusPacket *packet.StatusPacket, peerAd
 		wants, _ := g.HasOther(peerVector, g.State.VectorClock)
 		g.State.Mutex.RUnlock()
 
-		if !needsToSend && !wants{
+		if !needsToSend && !wants {
 			packet.PrintInSync(peerAddr)
 		}
 	}
@@ -141,11 +216,9 @@ func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr 
 	}
 	g.State.Mutex.RUnlock()
 
-
 	if rumorMessage == nil {
 		packet.PrintInSync(peerAddr)
 	}
-
 
 	if rand.Int()%2 == 0 && rumorMessage != nil {
 		g.Rumormongering(rumorMessage, true, peerAddr, nil)
@@ -161,8 +234,8 @@ func (g *Gossiper) sendStatusPacket(peerAddr *net.UDPAddr) {
 }
 
 //PrivateMessageRoutine handles the private messages.
-func (g *Gossiper) PrivateMessageRoutine(privateMessage *packet.PrivateMessage, from *net.UDPAddr) {
-	if privateMessage.Destination == g.Name{
+func (g *Gossiper) PrivateMessageRoutine(privateMessage *packet.PrivateMessage) {
+	if privateMessage.Destination == g.Name {
 
 		packet.PrintPrivateMessage(privateMessage)
 
@@ -170,12 +243,12 @@ func (g *Gossiper) PrivateMessageRoutine(privateMessage *packet.PrivateMessage, 
 		g.State.UpdatePrivateQueue(privateMessage.Origin, privateMessage)
 		g.State.Mutex.Unlock()
 
-	}else if privateMessage.HopLimit > 0{
-		privateMessage.HopLimit -=1
+	} else if privateMessage.HopLimit > 0 {
+		privateMessage.HopLimit -= 1
 
 		g.DSDV.Mutex.RLock()
-		if g.DSDV.Contains(privateMessage.Destination){
-			g.sendMessage(&packet.GossipPacket{Private:privateMessage}, g.DSDV.NextHop[privateMessage.Destination])
+		if g.DSDV.Contains(privateMessage.Destination) {
+			g.sendMessage(&packet.GossipPacket{Private: privateMessage}, g.DSDV.NextHop[privateMessage.Destination])
 		}
 		g.DSDV.Mutex.RUnlock()
 	}

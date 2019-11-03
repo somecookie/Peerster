@@ -7,18 +7,6 @@ import (
 
 //HandleMessage is used to handle the messages that come from the client
 func (g *Gossiper) HandleMessage(message *packet.Message) {
-/*
-	if dest != "" && fileName != "" && requestString != "" && msg == ""{
-		return true //download
-	}else if dest != "" && fileName == "" && requestString == "" && msg != ""{
-		return true //private message
-	}else if dest == "" && fileName != "" && requestString == "" && msg == ""{
-		return true //file sharing
-	} else if dest == "" && fileName == "" && requestString == "" && msg != ""{
-		return true //rumor message
-	}else{
-		return false
-	}*/
 
 	if message.Destination == nil && message.File == nil && message.Request == nil && message.Text != ""{
 		packet.PrintClientMessage(message)
@@ -32,11 +20,11 @@ func (g *Gossiper) HandleMessage(message *packet.Message) {
 		packet.PrintClientMessage(message)
 		go g.startPrivate(message)
 	}else if message.Destination == nil && message.File != nil && message.Request == nil && message.Text == ""{
-		//packet.PrintClientMessage(message)
+		packet.PrintClientMessage(message)
 		go g.IndexFile(*message.File)
 	}else if  message.Destination != nil && message.File != nil && message.Request != nil && message.Text == ""{
-		//packet.PrintClientMessage(message)
-		//TODO go startDownload(message)
+		packet.PrintClientMessage(message)
+		go g.startDownload(message)
 	}
 }
 
@@ -94,10 +82,16 @@ func (g *Gossiper) startPrivate(message *packet.Message) {
 	}
 
 	g.DSDV.Mutex.RLock()
-	g.sendMessage(&packet.GossipPacket{Private:pm}, g.DSDV.NextHop[*message.Destination])
-	g.DSDV.Mutex.RUnlock()
+	if g.DSDV.Contains(*message.Destination){
+		g.sendMessage(&packet.GossipPacket{Private:pm}, g.DSDV.NextHop[*message.Destination])
+		g.DSDV.Mutex.RUnlock()
 
-	g.State.Mutex.Lock()
-	g.State.UpdatePrivateQueue(*message.Destination, pm)
-	g.State.Mutex.Unlock()
+		g.State.Mutex.Lock()
+		g.State.UpdatePrivateQueue(*message.Destination, pm)
+		g.State.Mutex.Unlock()
+	}else{
+		g.DSDV.Mutex.RUnlock()
+	}
+
 }
+
