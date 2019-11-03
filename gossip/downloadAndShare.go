@@ -75,6 +75,7 @@ func (g *Gossiper) waitDownloadACK(nextHopAddr *net.UDPAddr, dataRequest *packet
 	for {
 		select {
 		case <-ticker.C:
+			//TODO: print messages at each timeout => refractor code to have only one functions for both process and start
 			g.sendMessage(&packet.GossipPacket{DataRequest: dataRequest}, nextHopAddr)
 		case dataReply := <-ack:
 			ticker.Stop()

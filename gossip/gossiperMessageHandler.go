@@ -36,8 +36,6 @@ func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, from
 func (g *Gossiper) DataReplyRoutine(dataReply *packet.DataReply) {
 	if dataReply.Destination == g.Name{
 
-
-
 		hasher.Reset()
 		_, err := hasher.Write(dataReply.Data)
 
