@@ -24,16 +24,10 @@
                     Rumors
                 </div>
             </div>
-
-            <div class="conversation">
-                <div class="title-text">
-                    Diana
-                </div>
-            </div>
         </div>
 
         <div id="chat-title">
-            <span>Rumors</span>
+            <span id="span-name">Rumors</span>
 
         </div>
         <div id="chat-message-list">
@@ -41,34 +35,41 @@
         <div id="chat-form">
             <img src="images/addAttachment.png" alt="Add Attachment" id="fileShare">
             <input id="file-input" type="file" style="display: none;" />
-            <input type="text" placeholder="type a message">
+            <input id="text-input" type="text" placeholder="type a message">
 
         </div>
         <div id=node-text>
             <span>Known Nodes</span>
         </div>
         <div id="node-list">
-            <div class=node>127.0.0.1:5000</div>
-            <div class=node>127.0.0.1:5000</div>
-            <div class=node>127.0.0.1:5000</div>
-            <div class=node>127.0.0.1:5000</div>
         </div>
 
         <div id="new-node">
-            <input id="newNode" type="text" placeholder="127.0.0.1:5000">
             <button id="addButton">+</button>
-            
+            <input id="newNode" type="text" placeholder="127.0.0.1:5000">
+        </div>
+
+        <div id="download">
+                <button id="hashButton">#</button>
+                <input id="newHash" type="text" placeholder="enter file name;metahash">
         </div>
 
     </div>
 
     <script>
-            document.getElementById("addButton").onclick = buttonClickNewNode
-            document.getElementById("fileShare").onclick = () => {
-                document.getElementById('file-input').click();
+        document.getElementById("addButton").onclick = buttonClickNewNode
+        document.getElementById("fileShare").onclick = () => {
+            document.getElementById('file-input').click();
+        }
+        document.getElementById("file-input").onchange = e => fileSelectionHandler(e)
+        document.getElementById("text-input").addEventListener("keyup", event => {
+            if (event.keyCode === 13) {
+                event.preventDefault();
+                sendNewMessage()
             }
-            document.getElementById("file-input").onchange =  e => fileSelectionHandler(e)
-        </script>
+        })
+        document.getElementById("hashButton").onclick = buttonClickDownload
+    </script>
 </body>
 
 </html>

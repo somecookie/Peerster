@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
@@ -53,9 +54,27 @@ func rumorMessagesHandler(w http.ResponseWriter, request *http.Request) {
 	enableCors(&w)
 	switch request.Method {
 	case "GET":
-		g.State.Mutex.RLock()
-		jsonValue, err := json.Marshal(g.State.RumorQueue)
-		g.State.Mutex.RUnlock()
+		name, _ := request.URL.Query()["name"]
+		var jsonValue []byte
+		var err error
+
+		if name[0] == "Rumors"{
+			g.State.Mutex.RLock()
+			jsonValue, err = json.Marshal(g.State.RumorQueue)
+			g.State.Mutex.RUnlock()
+		}else{
+			g.State.Mutex.RLock()
+			messages, ok := g.State.PrivateQueue[name[0]]
+			g.State.Mutex.RUnlock()
+
+			if ok{
+				jsonValue, err = json.Marshal(messages)
+			}else{
+				empty := make([]packet.PrivateMessage,0)
+				jsonValue, err = json.Marshal(empty)
+			}
+
+		}
 
 		if err == nil {
 			w.WriteHeader(http.StatusOK)
@@ -66,7 +85,17 @@ func rumorMessagesHandler(w http.ResponseWriter, request *http.Request) {
 	case "POST":
 		err := request.ParseForm()
 		if err == nil {
-			rm := &packet.Message{Text: request.Form.Get("value")}
+			text := request.Form.Get("value")
+			dest := request.Form.Get("dest")
+			rm := &packet.Message{Text:text, Destination:&dest }
+
+
+			if dest == "Rumors"{
+				rm.Destination = nil
+			}
+
+
+
 			g.HandleMessage(rm)
 		}
 	default:
@@ -126,6 +155,31 @@ func shareFileHandler(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 
+func downloadHandler(writer http.ResponseWriter, request *http.Request) {
+	err := request.ParseForm()
+	if err == nil {
+		metahashStr := request.Form.Get("metahash")
+		dest := request.Form.Get("from")
+		fileName := request.Form.Get("fileName")
+		
+		request, err := hex.DecodeString(metahashStr)
+		
+		if err != nil || len(request) != 32{
+			writer.WriteHeader(http.StatusBadRequest)
+		}else{
+			writer.WriteHeader(http.StatusOK)
+			g.HandleMessage(&packet.Message{
+				Text:        "",
+				Destination: &dest,
+				File:        &fileName,
+				Request:     &request,
+			})
+		}
+
+	}
+}
+
+
 
 func enableCors(w *http.ResponseWriter) {
 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
@@ -139,9 +193,11 @@ func HandleServerGUI() {
 	http.HandleFunc("/node", nodeHandler)
 	http.HandleFunc("/origin", originHandler)
 	http.HandleFunc("/shareFile", shareFileHandler)
+	http.HandleFunc("/download", downloadHandler)
 	for {
 		err := http.ListenAndServe(serverAddr, nil)
 		helper.LogError(err)
 	}
 }
+
 
