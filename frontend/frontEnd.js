@@ -4,13 +4,13 @@ let active = "General"
 
 function buttonClickNewMessage() {
     let inputText = document.getElementById("newMessage")
-    
+
 
     if (inputText.value != "") {
         $.ajax({
             type: "POST",
             url: "http://localhost:8080/message",
-            data: { "value": inputText.value},
+            data: { "value": inputText.value },
             success: () => {
                 inputText.value = ""
             }, error: (status) => {
@@ -29,19 +29,19 @@ function buttonClickNewMessage() {
 function addNewMessage(origin, content) {
     let messageList = document.getElementById("chat-message-list")
     let messageRow = document.createElement("div")
-    if(origin === myID){
+    if (origin === myID) {
         messageRow.className = "message-row you-message"
-    }else{
+    } else {
         messageRow.className = "message-row other-message"
     }
     let messageText = document.createElement("div")
     messageText.className = "message-text"
     messageText.innerHTML = content
-    
+
     let messageOrigin = document.createElement("div")
     messageOrigin.className = "message-origin"
     messageOrigin.innerHTML = origin
-    
+
     messageRow.appendChild(messageText)
     messageRow.appendChild(messageOrigin)
 
@@ -61,7 +61,7 @@ function buttonClickNewNode() {
                 inputText.value = ""
             },
             error: (status) => {
-                if(status.status == 400){
+                if (status.status == 400) {
                     alert("You cannot add your own gossiper!")
                 }
             }
@@ -111,7 +111,6 @@ function getAllNodes() {
         dataType: 'json',
         success: function (data, status) {
             let list = document.getElementById("node-list")
-            console.log(data)
 
             while (list.hasChildNodes()) {
                 list.removeChild(list.lastChild)
@@ -133,6 +132,17 @@ function addNewOriginToList(origin) {
     node.appendChild(textNode)
     document.getElementById("origins").appendChild(node)
 
+
+}
+
+function fileSelectionHandler(e) {
+
+    let file = e.target.files[0]
+    $.ajax({
+        type: "POST",
+        url: "http://localhost:8080/shareFile",
+        data: { "fileName": file.name },
+    })
 
 }
 
@@ -165,9 +175,8 @@ $.ajax({
     type: "GET",
     url: "http://localhost:8080/id",
     success: function (data, status, xhr) {
-        console.log(data)
         let name = JSON.parse(data);
         myID = name.toString()
-        document.getElementById("nodeName").innerHTML = myID.substring(0,12)
+        document.getElementById("nodeName").innerHTML = myID.substring(0, 12)
     }
 });

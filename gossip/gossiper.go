@@ -1,6 +1,7 @@
 package gossip
 
 import (
+	"github.com/somecookie/Peerster/fileSharing"
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
 	"github.com/somecookie/Peerster/routing"
@@ -24,6 +25,9 @@ type Gossiper struct {
 	antiEntropy time.Duration
 	rtimer      time.Duration
 	DSDV        *routing.DSDV
+	FilesIndex  *fileSharing.FilesIndex
+	Requested   *fileSharing.DownloadState
+
 }
 
 //GossiperFactory creates a Gossiper from the parsed flags of main.go.
@@ -86,6 +90,8 @@ func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simp
 		antiEntropy: time.Duration(antiEntropy),
 		rtimer:      time.Duration(rtimer),
 		DSDV:        routing.DSDVFactory(),
+		FilesIndex:  fileSharing.FilesIndexFactory(),
+		Requested:   fileSharing.DownloadStateFactory(),
 	}, nil
 }
 
@@ -174,7 +180,7 @@ func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool
 
 	if flippedCoin {
 		packet.PrintFlippedCoin(peerAddr)
-	}else{
+	} else {
 		packet.PrintMongering(peerAddr)
 	}
 	go g.WaitForAck(message, peerAddr)
@@ -204,7 +210,9 @@ func (g *Gossiper) AntiEntropyRoutine() {
 			peerAddr := g.Peers.Random()
 
 			if peerAddr != nil {
+				g.State.Mutex.RLock()
 				g.sendStatusPacket(peerAddr)
+				g.State.Mutex.RUnlock()
 			}
 
 		}
@@ -247,3 +255,5 @@ func (g *Gossiper) createNewRouteRumor() *packet.RumorMessage {
 	g.State.UpdateGossiperState(routeRumorMessage)
 	return routeRumorMessage
 }
+
+
