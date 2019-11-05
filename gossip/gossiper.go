@@ -62,7 +62,7 @@ func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simp
 	}
 
 	pending := PendingACK{
-		ACKS:  make(map[string]map[ACK]bool),
+		ACKS:  make(map[string]map[ACK]chan *packet.StatusPacket),
 		Mutex: sync.RWMutex{},
 	}
 

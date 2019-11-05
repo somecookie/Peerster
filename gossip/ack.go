@@ -12,26 +12,24 @@ const TIMEOUT = 10
 type ACK struct {
 	Origin       string
 	ID           uint32
-	AckedChannel chan *packet.StatusPacket
 }
 
 type PendingACK struct {
-	ACKS  map[string]map[ACK]bool
+	ACKS  map[string]map[ACK]chan *packet.StatusPacket
 	Mutex sync.RWMutex
 }
 
 //WaitForAck waits for the acknowledgment. It timeouts after 10 seconds.
 func (g *Gossiper) WaitForAck(message *packet.RumorMessage, peerAddr *net.UDPAddr) {
-	ackedChannel := make(chan *packet.StatusPacket)
-	ack := ACK{
-		Origin:       message.Origin,
-		ID:           message.ID,
-		AckedChannel: ackedChannel,
-	}
+
 
 	g.pendingACK.Mutex.Lock()
-	g.AddToPendingACK(ack, peerAddr)
+	ackChannel:=g.AddToPendingACK(message, peerAddr)
 	g.pendingACK.Mutex.Unlock()
+
+	if ackChannel == nil{
+		return
+	}
 
 	ticker := time.NewTicker(TIMEOUT * time.Second)
 	defer ticker.Stop()
@@ -40,14 +38,14 @@ func (g *Gossiper) WaitForAck(message *packet.RumorMessage, peerAddr *net.UDPAdd
 	case <-ticker.C:
 
 		g.pendingACK.Mutex.Lock()
-		g.RemoveACKed(ack, peerAddr)
+		g.RemoveACKed(message, peerAddr)
 		g.pendingACK.Mutex.Unlock()
 
 		g.Rumormongering(message, false, nil, nil)
 
-	case sp := <-ack.AckedChannel:
+	case sp := <-ackChannel:
 		g.pendingACK.Mutex.Lock()
-		g.RemoveACKed(ack, peerAddr)
+		g.RemoveACKed(message, peerAddr)
 		g.pendingACK.Mutex.Unlock()
 
 		g.StatusPacketHandler(sp.Want, peerAddr, message)
@@ -55,15 +53,43 @@ func (g *Gossiper) WaitForAck(message *packet.RumorMessage, peerAddr *net.UDPAdd
 }
 
 //AddToPendingACK adds the ack to the List of pending acknowledgment
-func (g *Gossiper) AddToPendingACK(ack ACK, peerAddr *net.UDPAddr) {
-	if _, ok := g.pendingACK.ACKS[peerAddr.String()]; !ok{
-		g.pendingACK.ACKS[peerAddr.String()] = make(map[ACK]bool)
+func (g *Gossiper) AddToPendingACK(rumor *packet.RumorMessage, peerAddr *net.UDPAddr) chan *packet.StatusPacket {
+	new := false
+	ack := ACK{
+		Origin: rumor.Origin,
+		ID:     rumor.ID,
 	}
-	g.pendingACK.ACKS[peerAddr.String()][ack] = true
+	if _, ok := g.pendingACK.ACKS[peerAddr.String()]; !ok{
+		g.pendingACK.ACKS[peerAddr.String()] = make(map[ACK]chan *packet.StatusPacket)
+		new = true
+	}else{
+		if _, ok := g.pendingACK.ACKS[peerAddr.String()][ack]; !ok{
+			new = true
+		}
+	}
+
+	if new{
+		ackChannel := make(chan *packet.StatusPacket, 100) //arbitrary value, should be tested..
+		g.pendingACK.ACKS[peerAddr.String()][ack] = ackChannel
+		return ackChannel
+	}else{
+		return nil
+	}
+
+
 }
 
-func (g *Gossiper) RemoveACKed(ack ACK, peerAddr *net.UDPAddr) {
-	delete(g.pendingACK.ACKS[peerAddr.String()], ack)
+func (g *Gossiper) RemoveACKed(message *packet.RumorMessage, peerAddr *net.UDPAddr) {
+	ack := ACK{
+		Origin: message.Origin,
+		ID:     message.ID,
+	}
+
+	if c, ok:= g.pendingACK.ACKS[peerAddr.String()][ack]; ok{
+		close(c)
+		delete(g.pendingACK.ACKS[peerAddr.String()], ack)
+	}
+
 }
 
 func (g *Gossiper) AckRumors(peerAddr *net.UDPAddr, statusPacket *packet.StatusPacket) bool {
@@ -71,10 +97,10 @@ func (g *Gossiper) AckRumors(peerAddr *net.UDPAddr, statusPacket *packet.StatusP
 	peerVector := statusPacket.Want
 
 	for _, clock := range peerVector {
-		for ack := range g.pendingACK.ACKS[peerAddr.String()] {
+		for ack,c := range g.pendingACK.ACKS[peerAddr.String()] {
 			if clock.Identifier == ack.Origin && ack.ID < clock.NextID {
 				hasACKED = true
-				ack.AckedChannel <- statusPacket
+				c <- statusPacket
 			}
 		}
 	}
