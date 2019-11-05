@@ -22,10 +22,11 @@ body {
 #chat-container {
   display: grid;
   grid: 'identifer chat-title node-text' 71px
+  'conversation-list new-node node-list' 70px 
+  'conversation-list download node-list' 70px 
    'conversation-list chat-message-list node-list' 1fr
    'conversation-list chat-form node-list' 70px
-   'conversation-list new-node node-list' 70px 
-   'conversation-list new-node node-list' 70px 
+
    / 275px 1fr 200px;
   min-width: 800px;
   max-width: 90%;
@@ -84,7 +85,7 @@ body {
   text-overflow: ellipsis;
 }
 
-#chat-titile, #chat-form, #new-node {
+#chat-titile, #chat-form, #new-node, #download {
   background: #eee;
 }
 
@@ -231,6 +232,40 @@ body {
 }
 
 #addButton {
+  display: grid;
+  place-content: center center;
+  background: #eee;
+  border-radius: 100%;
+  color: #002c88;
+  text-decoration: none;
+  font-size: 3.6rem;
+  border: none;
+  background: none;
+}
+
+#download {
+  display: grid;
+  grid: 51px / 32px 2fr;
+  align-content: center;
+  align-items: center;
+  grid-gap: 15px;
+  grid-area: download;
+  border-radius: 0 0 10px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.25);
+  padding-left: 20px;
+  padding-right: 22px;
+}
+
+#newHash{
+  outline: none;
+  padding: 15px;
+  border: 2px solid #ddd;
+  color: #330;
+  border-radius: 6px;
+  font-size: 1.8rem;
+}
+
+#hashButton {
   display: grid;
   place-content: center center;
   background: #eee;

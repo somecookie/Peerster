@@ -2,8 +2,8 @@ let numberMessage = 0
 let myID = ""
 let active = "Rumors"
 
-function buttonClickNewMessage() {
-    let inputText = document.getElementById("newMessage")
+function sendNewMessage() {
+    let inputText = document.getElementById("text-input")
 
 
     if (inputText.value != "") {
@@ -84,30 +84,40 @@ function checkValidIPv4(address) {
     return regex.test(ipPort[0]) && port >= 0 && port <= 65535
 }
 
-// setInterval(() => {
-//     getMessages()
-//     getAllNodes()
-//     getAllOrigins()
-// }, 5000)
+function checkValidSha256(hash) {
+    let regex = /^([a-f0-9]{64})$/
+    return regex.test(hash)
+}
 
-function getMessages(){
+setInterval(() => {
+    getMessages()
+    getAllNodes()
+    getAllOrigins()
+}, 5000)
+
+function getMessages() {
     $.ajax({
         type: "GET",
         url: "http://localhost:8080/message",
-        data:{
-            "name":active
+        data: {
+            "name": active
         },
         dataType: 'json',
         success: function (data, status) {
             let list = document.getElementById("chat-message-list")
-            
 
             while (list.hasChildNodes()) {
                 list.removeChild(list.lastChild)
             }
 
-            for(let msg of data){
+            for (let msg of data) {
                 addNewMessage(msg.Origin, msg.Text)
+            }
+        }, error: status => {
+            let list = document.getElementById("chat-message-list")
+
+            while (list.hasChildNodes()) {
+                list.removeChild(list.lastChild)
             }
         }
     })
@@ -135,6 +145,38 @@ function getAllNodes() {
     })
 }
 
+function buttonClickDownload() {
+
+    if(active === "Rumors"){
+        alert("You cannot download from Rumors")
+        return
+    }
+
+    let metaHashInput = document.getElementById("newHash")
+    let [fileName, metaHash] = metaHashInput.value.split(";")
+    if (checkValidSha256(metaHash)) {
+        $.ajax({
+            type: "POST",
+            url: "http://localhost:8080/download",
+            data: {
+                "metahash": metaHash,
+                "from": active,
+                "fileName": fileName
+            },
+            success: () => {
+                metaHashInput.value = ""
+            }, error: (status) => {
+                console.log(status)
+                metaHashInput.value = ""
+            }
+        })
+    } else {
+        alert("Invalid SHA256")
+        document.getElementById("newHash").value = ""
+    }
+
+}
+
 
 function fileSelectionHandler(e) {
 
@@ -157,7 +199,7 @@ function getAllOrigins() {
             while (list.hasChildNodes()) {
                 list.removeChild(list.lastChild)
             }
-            
+
             addConversation("Rumors")
 
             for (let origin of data.sort()) {
@@ -167,28 +209,28 @@ function getAllOrigins() {
     })
 }
 
-function changeActive(name){
+function changeActive(name) {
     let convList = document.getElementById("conversation-list")
-    
-    for(let ch of convList.childNodes){
-        if(ch.className === "conversation active"){
+
+    for (let ch of convList.childNodes) {
+        if (ch.className === "conversation active") {
             ch.className = "conversation"
-        }else{
+        } else {
             let title = ch.lastChild
-            if(title.innerHTML === name){
+            if (title.innerHTML === name) {
                 ch.className = "conversation active"
             }
         }
 
     }
-    
+
 }
 
 
-function addConversation(name){
+function addConversation(name) {
     let convList = document.getElementById("conversation-list")
     let cl = "conversation"
-    if(name === active){
+    if (name === active) {
         cl = "conversation active"
     }
 
@@ -199,7 +241,7 @@ function addConversation(name){
         changeActive(name)
         getMessages()
         document.getElementById("span-name").innerHTML = name
-        
+
     }
 
     let titleDiv = document.createElement("div")
