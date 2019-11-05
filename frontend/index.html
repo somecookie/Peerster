@@ -55,20 +55,21 @@
         </div>
 
         <div id="new-node">
-            <input id="newNode" type="text" placeholder="127.0.0.1:5000">
             <button id="addButton">+</button>
-            
+            <input id="newNode" type="text" placeholder="127.0.0.1:5000">
+
+
         </div>
 
     </div>
 
     <script>
-            document.getElementById("addButton").onclick = buttonClickNewNode
-            document.getElementById("fileShare").onclick = () => {
-                document.getElementById('file-input').click();
-            }
-            document.getElementById("file-input").onchange =  e => fileSelectionHandler(e)
-        </script>
+        document.getElementById("addButton").onclick = buttonClickNewNode
+        document.getElementById("fileShare").onclick = () => {
+            document.getElementById('file-input').click();
+        }
+        document.getElementById("file-input").onchange = e => fileSelectionHandler(e)
+    </script>
 </body>
 
 </html>

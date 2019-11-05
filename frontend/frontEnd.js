@@ -1,6 +1,6 @@
 let numberMessage = 0
 let myID = ""
-let active = "General"
+let active = "Rumors"
 
 function buttonClickNewMessage() {
     let inputText = document.getElementById("newMessage")
@@ -98,7 +98,7 @@ setInterval(() => {
             }
 
             getAllNodes()
-            //getAllOrigins()
+            getAllOrigins()
         }
     })
 }, 1000)
@@ -126,14 +126,6 @@ function getAllNodes() {
     })
 }
 
-function addNewOriginToList(origin) {
-    let node = document.createElement("LI")
-    let textNode = document.createTextNode(origin)
-    node.appendChild(textNode)
-    document.getElementById("origins").appendChild(node)
-
-
-}
 
 function fileSelectionHandler(e) {
 
@@ -146,29 +138,49 @@ function fileSelectionHandler(e) {
 
 }
 
-/*
 function getAllOrigins() {
     $.ajax({
         type: "GET",
         url: "http://localhost:8080/origin",
         dataType: 'json',
         success: function (data, status) {
-            let list = document.getElementById("origins")
+            let list = document.getElementById("conversation-list")
             while (list.hasChildNodes()) {
                 list.removeChild(list.lastChild)
             }
+            
+            addConversation("Rumors")
 
             for (let origin of data.sort()) {
-                addNewOriginToList(origin)
+                addConversation(origin)
             }
         }
     })
-}*/
+}
+
+function addConversation(name){
+    let convList = document.getElementById("conversation-list")
+    let cl = "conversation"
+    if(name === active){
+        cl = "conversation active"
+    }
+
+    let convDiv = document.createElement("div")
+    convDiv.className = cl
+
+    let titleDiv = document.createElement("div")
+    titleDiv.className = "title-text"
+    titleDiv.innerHTML = name
+
+    convDiv.appendChild(titleDiv)
+    convList.appendChild(convDiv)
+
+}
 
 
 
 getAllNodes()
-//getAllOrigins()
+getAllOrigins()
 
 
 $.ajax({
