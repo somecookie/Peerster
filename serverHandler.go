@@ -85,7 +85,17 @@ func rumorMessagesHandler(w http.ResponseWriter, request *http.Request) {
 	case "POST":
 		err := request.ParseForm()
 		if err == nil {
-			rm := &packet.Message{Text: request.Form.Get("value")}
+			text := request.Form.Get("value")
+			dest := request.Form.Get("dest")
+			rm := &packet.Message{Text:text, Destination:&dest }
+
+
+			if dest == "Rumors"{
+				rm.Destination = nil
+			}
+
+
+
 			g.HandleMessage(rm)
 		}
 	default:

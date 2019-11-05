@@ -10,7 +10,10 @@ function sendNewMessage() {
         $.ajax({
             type: "POST",
             url: "http://localhost:8080/message",
-            data: { "value": inputText.value },
+            data: {
+                "value": inputText.value,
+                "dest": active
+            },
             success: () => {
                 inputText.value = ""
             }, error: (status) => {
@@ -93,7 +96,7 @@ setInterval(() => {
     getMessages()
     getAllNodes()
     getAllOrigins()
-}, 5000)
+}, 1000)
 
 function getMessages() {
     $.ajax({
@@ -147,7 +150,7 @@ function getAllNodes() {
 
 function buttonClickDownload() {
 
-    if(active === "Rumors"){
+    if (active === "Rumors") {
         alert("You cannot download from Rumors")
         return
     }
