@@ -84,25 +84,34 @@ function checkValidIPv4(address) {
     return regex.test(ipPort[0]) && port >= 0 && port <= 65535
 }
 
-setInterval(() => {
+// setInterval(() => {
+//     getMessages()
+//     getAllNodes()
+//     getAllOrigins()
+// }, 5000)
+
+function getMessages(){
     $.ajax({
         type: "GET",
         url: "http://localhost:8080/message",
+        data:{
+            "name":active
+        },
         dataType: 'json',
         success: function (data, status) {
-            for (let i = numberMessage; i < data.length; i++) {
-                numberMessage++
-                let message = data[i]
-                addNewMessage(message.Origin, message.Text)
+            let list = document.getElementById("chat-message-list")
+            
 
+            while (list.hasChildNodes()) {
+                list.removeChild(list.lastChild)
             }
 
-            getAllNodes()
-            getAllOrigins()
+            for(let msg of data){
+                addNewMessage(msg.Origin, msg.Text)
+            }
         }
     })
-}, 1000)
-
+}
 
 function getAllNodes() {
     $.ajax({
@@ -158,6 +167,24 @@ function getAllOrigins() {
     })
 }
 
+function changeActive(name){
+    let convList = document.getElementById("conversation-list")
+    
+    for(let ch of convList.childNodes){
+        if(ch.className === "conversation active"){
+            ch.className = "conversation"
+        }else{
+            let title = ch.lastChild
+            if(title.innerHTML === name){
+                ch.className = "conversation active"
+            }
+        }
+
+    }
+    
+}
+
+
 function addConversation(name){
     let convList = document.getElementById("conversation-list")
     let cl = "conversation"
@@ -167,6 +194,13 @@ function addConversation(name){
 
     let convDiv = document.createElement("div")
     convDiv.className = cl
+    convDiv.onclick = () => {
+        active = name
+        changeActive(name)
+        getMessages()
+        document.getElementById("span-name").innerHTML = name
+        
+    }
 
     let titleDiv = document.createElement("div")
     titleDiv.className = "title-text"
@@ -179,10 +213,6 @@ function addConversation(name){
 
 
 
-getAllNodes()
-getAllOrigins()
-
-
 $.ajax({
     type: "GET",
     url: "http://localhost:8080/id",
@@ -192,3 +222,7 @@ $.ajax({
         document.getElementById("nodeName").innerHTML = myID.substring(0, 12)
     }
 });
+
+getMessages()
+getAllNodes()
+getAllOrigins()
