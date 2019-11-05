@@ -35,7 +35,6 @@ func GossiperStateFactory() *GossiperState{
 //UpdateGossiperState updates the vector clock and the archives.
 func (gs *GossiperState) UpdateGossiperState(message *packet.RumorMessage) {
 	gs.updateVectorClock(message)
-
 	gs.updateArchive(message)
 
 }

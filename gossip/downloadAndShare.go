@@ -53,7 +53,7 @@ func (g *Gossiper) startDownload(message *packet.Message) {
 		g.Requested.Mutex.Unlock()
 
 
-		go g.waitDownloadACK(nextHopAddr, dr, metaHashStr)
+		go g.waitDownloadACK(nextHopAddr, dr, metaHashStr, *message.File)
 
 	} else {
 		g.DSDV.Mutex.RUnlock()
@@ -62,20 +62,24 @@ func (g *Gossiper) startDownload(message *packet.Message) {
 
 }
 
-func (g *Gossiper) waitDownloadACK(nextHopAddr *net.UDPAddr, dataRequest *packet.DataRequest, metaHashStr string) {
+func (g *Gossiper) waitDownloadACK(nextHopAddr *net.UDPAddr, dataRequest *packet.DataRequest, metaHashStr, name string) {
 	from := dataRequest.Destination
 	hash := hex.EncodeToString(dataRequest.HashValue)
 	ack := make(chan *packet.DataReply)
 
 	g.Requested.Mutex.Lock()
 	g.addDownloadACK(from, hash, ack)
+	chunkNbr := g.Requested.State[from][metaHashStr]
 	g.Requested.Mutex.Unlock()
 	ticker := time.NewTicker(DOWNLOAD_TIMEOUT * time.Second)
-
 	for {
 		select {
 		case <-ticker.C:
-			//TODO: print messages at each timeout => refractor code to have only one functions for both process and start
+			if chunkNbr == 0{
+				fmt.Printf("DOWNLOADING metafile of %s from %s\n", name, from)
+			}else{
+				fmt.Printf("DOWNLOADING %s chunk %d from %s\n", name, chunkNbr-1, from)
+			}
 			g.sendMessage(&packet.GossipPacket{DataRequest: dataRequest}, nextHopAddr)
 		case dataReply := <-ack:
 			ticker.Stop()
@@ -108,14 +112,14 @@ func (g *Gossiper) processReply(dataReply *packet.DataReply, metaHashStr string)
 			metadata.Metafile = append(metadata.Metafile, dataReply.Data...)
 			metadata.NbrChunks = uint32(math.Ceil(float64(len(dataReply.Data))/32.0))
 			dataRequest, nextHopAddr := g.sendNextRequest(metadata, dataReply, chunkNbr+1)
-			go g.waitDownloadACK(nextHopAddr, dataRequest, metaHashStr)
+			go g.waitDownloadACK(nextHopAddr, dataRequest, metaHashStr, metadata.Name)
 
 		} else if chunkNbr < metadata.NbrChunks {
 			fmt.Printf("DOWNLOADING %s chunk %d from %s\n", metadata.Name, chunkNbr, dataReply.Origin)
 			metadata.Chunks[hex.EncodeToString(dataReply.HashValue)] = make([]byte, 0, len(dataReply.Data))
 			metadata.Chunks[hex.EncodeToString(dataReply.HashValue)] = append(metadata.Chunks[hex.EncodeToString(dataReply.HashValue)], dataReply.Data...)
 			dataRequest, nextHopAddr := g.sendNextRequest(metadata, dataReply, chunkNbr+1)
-			go g.waitDownloadACK(nextHopAddr, dataRequest, metaHashStr)
+			go g.waitDownloadACK(nextHopAddr, dataRequest, metaHashStr, metadata.Name)
 		} else {
 			metadata.Chunks[hex.EncodeToString(dataReply.HashValue)] = make([]byte, 0, len(dataReply.Data))
 			metadata.Chunks[hex.EncodeToString(dataReply.HashValue)] = append(metadata.Chunks[hex.EncodeToString(dataReply.HashValue)], dataReply.Data...)

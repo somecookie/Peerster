@@ -137,12 +137,15 @@ func (g *Gossiper) RumorMessageRoutine(message *packet.RumorMessage, peerAddr *n
 	PrintPeers(g)
 	g.Peers.Mutex.RUnlock()
 
+
+
 	g.State.Mutex.Lock()
 	if message.ID >= g.GetNextID(message.Origin) && message.Origin != g.Name {
 
 		g.DSDV.Mutex.Lock()
 		g.DSDV.Update(message, peerAddr)
 		g.DSDV.Mutex.Unlock()
+
 
 		g.State.UpdateGossiperState(message)
 		g.sendStatusPacket(peerAddr)
