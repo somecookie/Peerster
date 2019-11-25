@@ -2,6 +2,8 @@ package fileSharing
 
 import (
 	"encoding/hex"
+	"github.com/somecookie/Peerster/packet"
+	"strings"
 	"sync"
 )
 
@@ -39,4 +41,21 @@ func (fi *FilesIndex)FindChunkFromHash(hash string) []byte{
 		}
 	}
 	return nil
+}
+
+func (fi *FilesIndex) FindMatchingFiles(keywords []string) []*packet.SearchResult{
+	results := make([]*packet.SearchResult,0)
+	for _, keyword := range keywords{
+		for _, metadata := range fi.Index{
+			if strings.Contains(metadata.Name, keyword){
+				results = append(results, &packet.SearchResult{
+					FileName:     metadata.Name,
+					MetafileHash: metadata.MetaHash,
+					ChunkMap:     nil, //TODO
+					ChunkCount:   0,
+				})
+			}
+		}
+	}
+	return results
 }

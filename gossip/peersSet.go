@@ -59,6 +59,30 @@ func (ps *PeersSet) Random() *net.UDPAddr {
 	return nil
 }
 
+//NRandom chooses n random peers from the list of peers
+//n uint64 is the number of peers selected at random
+//returns n randomly drawn peers, if the total number of peers is bigger than n, it returns all peers
+func (ps *PeersSet)NRandom(n uint64) []*net.UDPAddr{
+
+	subset := make([]*net.UDPAddr, 0, len(ps.Set))
+	for _,v := range ps.Set{
+		subset = append(subset, v)
+	}
+
+	if n > uint64(len(ps.Set)){
+		return subset
+	}
+
+	perm := rand.Perm(len(ps.Set))
+	result := make([]*net.UDPAddr,0,n)
+
+	for _, i := range perm[:n]{
+		result = append(result, subset[i])
+	}
+
+	return result
+}
+
 //PeersSetAsList returns the values of the PeersSet as a list of *net.UDPAddr
 func (ps* PeersSet) PeersSetAsList() []*net.UDPAddr{
 	ls := make([]*net.UDPAddr, 0, len(ps.Set))

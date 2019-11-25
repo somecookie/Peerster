@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
+	"math"
 	"math/rand"
 	"net"
 )
@@ -253,4 +254,48 @@ func (g *Gossiper) PrivateMessageRoutine(privateMessage *packet.PrivateMessage) 
 		}
 		g.DSDV.Mutex.RUnlock()
 	}
+}
+
+func (g *Gossiper) SearchRequestRoutine(sr *packet.SearchRequest, keywords []string){
+	//TODO QUESTION: Do you need to substract 1 from budget the first time? and what to do if origin is self?
+
+	if sr.Origin == g.Name && keywords != nil {
+		//start request
+
+	}
+
+	//process request locally
+	g.FilesIndex.Mutex.RLock()
+	results := g.FilesIndex.FindMatchingFiles(sr.Keywords)
+	g.FilesIndex.Mutex.RUnlock()
+
+	if len(results) > 0{
+		//TODO: reply
+	}
+
+	remainingBudget := sr.Budget - 1
+	g.Peers.Mutex.RLock()
+	nbrPeers := uint64(len(g.Peers.Set))
+	if remainingBudget > 0 && remainingBudget < nbrPeers{
+		randomPeers := g.Peers.NRandom(remainingBudget)
+		forwardSR := &packet.SearchRequest{
+			Origin:   sr.Origin,
+			Budget:   1,
+			Keywords: sr.Keywords,
+		}
+
+		for _, dest := range randomPeers{
+			g.sendMessage(&packet.GossipPacket{SearchRequest:forwardSR},dest)
+		}
+	} else if remainingBudget > 0{
+
+		for _,dest := range g.Peers.Set{
+			//TODO subdivide budget
+
+			//g.sendMessage(&packet.GossipPacket{SearchRequest:forwardSR},dest)
+		}
+
+	}
+	g.Peers.Mutex.RUnlock()
+
 }

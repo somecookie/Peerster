@@ -106,7 +106,7 @@ func (g *Gossiper) processReply(dataReply *packet.DataReply, metaHashStr string)
 		metadata := g.FilesIndex.Index[metaHashStr]
 		g.FilesIndex.Mutex.RUnlock()
 
-
+		//TODO: réfléchir si besoin de lock modification de metadata
 		if chunkNbr == 0 {
 			metadata.Metafile = make([]byte, 0, len(dataReply.Data))
 			metadata.Metafile = append(metadata.Metafile, dataReply.Data...)

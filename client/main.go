@@ -15,37 +15,46 @@ var (
 	uiPort        string
 	msg           string
 	dest          string
-	fileName      string
+	file          string
 	requestString string
+	keywords      string
+	budget        uint64
 )
 
 func init() {
 	flag.StringVar(&uiPort, "UIPort", "8080", "port for the UI client (default \"8080\")")
 	flag.StringVar(&msg, "msg", "", "message to be sent: if the -dest flag is present, this is a private message, otherwise it's a rumor message")
 	flag.StringVar(&dest, "dest", "", "destination for the private message; can be omitted")
-	flag.StringVar(&fileName, "file", "", "file to be indexed by the gossiper")
-	flag.StringVar(&requestString, "request", "", "requestString a chunk or metafile of this hash")
+	flag.StringVar(&file, "file", "", "file to be indexed by the gossiper")
+	flag.StringVar(&requestString, "request", "", "request a chunk or metafile of this hash")
+	flag.StringVar(&keywords, "keywords", "", "comma separated list of searched keywords")
+	flag.Uint64Var(&budget, "budget",0, "budget for the search")
+
 	flag.Parse()
 }
 
-func validFlags()bool{
+func validFlags() bool {
 
-	if dest != "" && fileName != "" && requestString != "" && msg == ""{
-		return true //download
-	}else if dest != "" && fileName == "" && requestString == "" && msg != ""{
+	if dest != "" && file != "" && requestString != "" && msg == "" && keywords == "" && budget == 0 {
+		return true //download without previous search
+	} else if dest == "" && file != "" && requestString != "" && msg == "" && keywords == "" && budget == 0{
+		return true //download with previous search
+	} else if dest != "" && file == "" && requestString == "" && msg != "" {
 		return true //private message
-	}else if dest == "" && fileName != "" && requestString == "" && msg == ""{
+	} else if dest == "" && file != "" && requestString == "" && msg == "" {
 		return true //file sharing
-	} else if dest == "" && fileName == "" && requestString == "" && msg != ""{
+	} else if dest == "" && file == "" && requestString == "" && msg != "" {
 		return true //rumor message
-	}else{
+	}else if dest == "" && file == "" && requestString == "" && msg == "" && keywords != ""{
+		return true //search
+	} else {
 		return false
 	}
 }
 
 func main() {
 
-	if !validFlags(){
+	if !validFlags() {
 		fmt.Println("ERROR (Bad argument combination)")
 		os.Exit(1)
 	}
@@ -54,12 +63,12 @@ func main() {
 	defer conn.Close()
 
 	msg := &packet.Message{
-		Text:msg,
+		Text: msg,
 	}
 
-	if requestString != ""{
+	if requestString != "" {
 		request, err := hex.DecodeString(requestString)
-		if err != nil || len(request) != 32{
+		if err != nil || len(request) != 32 {
 			//os.Stderr.WriteString("ERROR (Unable to decode hex hash)")
 			fmt.Println("ERROR (Unable to decode hex hash)")
 			os.Exit(1)
@@ -72,8 +81,16 @@ func main() {
 		msg.Destination = &dest
 	}
 
-	if fileName != ""{
-		msg.File = &fileName
+	if file != "" {
+		msg.File = &file
+	}
+
+	if keywords != ""{
+		msg.Keywords = &keywords
+	}
+
+	if budget > 0{
+		msg.Budget = &budget
 	}
 
 	packetBytes, err := packet.GetPacketBytes(msg)

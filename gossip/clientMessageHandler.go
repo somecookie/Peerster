@@ -2,6 +2,7 @@ package gossip
 
 import (
 	"github.com/somecookie/Peerster/packet"
+	"strings"
 	"sync/atomic"
 )
 
@@ -25,6 +26,18 @@ func (g *Gossiper) HandleMessage(message *packet.Message) {
 	}else if  message.Destination != nil && message.File != nil && message.Request != nil && message.Text == ""{
 		packet.PrintClientMessage(message)
 		go g.startDownload(message)
+	}else if message.Destination == nil && message.File == nil && message.Request == nil && message.Text == "" && message.Keywords != nil{
+		keywords := strings.Split(*message.Keywords, ",")
+		if message.Budget != nil{
+			sr := &packet.SearchRequest{
+				Origin:   g.Name,
+				Budget:   *message.Budget,
+				Keywords: keywords,
+			}
+			go g.SearchRequestRoutine(sr, keywords)
+		}else{
+			//TODO: do thing page 3
+		}
 	}
 }
 

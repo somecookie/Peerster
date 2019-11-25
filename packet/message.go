@@ -11,6 +11,8 @@ type Message struct {
 	Destination *string
 	File        *string
 	Request     *[]byte
+	Keywords    *string
+	Budget      *uint64
 }
 
 //GetMessage deserialize the n first bytes of buffer to get a GetMessage
@@ -25,11 +27,10 @@ func GetMessage(buffer []byte, n int) (*Message, error) {
 }
 
 func PrintClientMessage(message *Message) {
-	if message.Destination == nil{
+	if message.Destination == nil {
 		fmt.Printf("CLIENT MESSAGE %s\n", message.Text)
-	}else{
+	} else {
 		fmt.Printf("CLIENT MESSAGE %s dest %s\n", message.Text, *message.Destination)
 	}
 
 }
-
