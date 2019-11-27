@@ -59,6 +59,53 @@ func (ps *PeersSet) Random() *net.UDPAddr {
 	return nil
 }
 
+//NRandom chooses n random peers from the list of peers
+//n uint64 is the number of peers selected at random
+//exceptions ... *net.UDPAddr contains the peers that should not be chosen
+//returns n randomly drawn peers, if the total number of peers is bigger than n, it returns all peers
+func (ps *PeersSet)NRandom(n uint64, exceptions ... *net.UDPAddr) []*net.UDPAddr{
+
+	subset := make([]*net.UDPAddr, 0, len(ps.Set))
+	for _,v := range ps.Set{
+		subset = append(subset, v)
+	}
+
+	if n > uint64(len(ps.Set)){
+		return subset
+	}
+
+	perm := rand.Perm(len(ps.Set))
+	result := make([]*net.UDPAddr,0,n)
+
+	j := uint64(1)
+	for _, i := range perm{
+		if !isExcepted(subset[i], exceptions){
+			result = append(result, subset[i])
+			j++
+		}
+
+		if j == n{
+			break
+		}
+
+	}
+
+	return result
+}
+//isExcepted is an helper function used to know if addr is in the list of exception
+//addr *net.UDPAddr is the address of the peer
+//exceptions []*net.UDPAddr is the list of exceptions
+func isExcepted(addr *net.UDPAddr, exceptions []*net.UDPAddr) bool{
+	for _, ex := range exceptions{
+		if addr.String() == ex.String(){
+			return true
+		}
+	}
+
+	return false
+}
+
+
 //PeersSetAsList returns the values of the PeersSet as a list of *net.UDPAddr
 func (ps* PeersSet) PeersSetAsList() []*net.UDPAddr{
 	ls := make([]*net.UDPAddr, 0, len(ps.Set))

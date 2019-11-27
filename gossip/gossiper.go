@@ -27,7 +27,9 @@ type Gossiper struct {
 	DSDV        *routing.DSDV
 	FilesIndex  *fileSharing.FilesIndex
 	Requested   *fileSharing.DownloadState
-
+	DSR         *packet.DuplicateSearchRequest
+	fullMatches *FullMatchCounter
+	Matches     *Matches
 }
 
 //GossiperFactory creates a Gossiper from the parsed flags of main.go.
@@ -92,6 +94,12 @@ func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simp
 		DSDV:        routing.DSDVFactory(),
 		FilesIndex:  fileSharing.FilesIndexFactory(),
 		Requested:   fileSharing.DownloadStateFactory(),
+		DSR:         packet.DSRFactory(),
+		fullMatches: &FullMatchCounter{
+			Mutex:       sync.Mutex{},
+			n: 0,
+		},
+		Matches:MatchesFactory(),
 	}, nil
 }
 
@@ -255,5 +263,3 @@ func (g *Gossiper) createNewRouteRumor() *packet.RumorMessage {
 	g.State.UpdateGossiperState(routeRumorMessage)
 	return routeRumorMessage
 }
-
-

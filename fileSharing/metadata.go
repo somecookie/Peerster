@@ -17,12 +17,13 @@ import (
 //Chunks is a map used to store the chunks mapped to its hash
 //The MetaHash, i.e., the hash of the metafile. The metahash is the only unique identifier of the file.
 type Metadata struct {
-	Name      string
-	Size      uint32
-	Metafile  []byte
-	Chunks    map[string][]byte
-	MetaHash  []byte
-	NbrChunks uint32
+	Name              string
+	Size              uint32
+	Metafile          []byte
+	Chunks            map[string][]byte
+	MetaHash          []byte
+	NbrChunks         uint64
+	LastReceivedChunk uint64
 }
 
 const CHUNK_SIZE = 8192
@@ -85,8 +86,10 @@ func MetadataFromIndexing(fileName string) (*Metadata, error) {
 		}
 		metadata.MetaHash = metaHash
 		metadata.Metafile = metafileSlice
+		metadata.LastReceivedChunk = metadata.NbrChunks
 
 		fmt.Println("metaHash:  " + hex.EncodeToString(metaHash))
+		fmt.Println("n° chunks: ",len(metadata.Chunks))
 
 		return metadata, nil
 	}
