@@ -45,11 +45,11 @@ func (g *Gossiper) startDownload(message *packet.Message) {
 		g.sendMessage(&packet.GossipPacket{DataRequest: dr}, nextHopAddr)
 
 		g.Requested.Mutex.Lock()
-		if _, ok := g.Requested.State[*message.Destination]; !ok {
-			g.Requested.State[*message.Destination] = make(map[string]uint32)
+		if _, ok := g.Requested.State[*message.File]; !ok {
+			g.Requested.State[*message.File] = make(map[string]uint64)
 		}
 
-		g.Requested.State[*message.Destination][metaHashStr] = 0
+		g.Requested.State[*message.File][metaHashStr] = 0
 		g.Requested.Mutex.Unlock()
 
 
@@ -69,7 +69,7 @@ func (g *Gossiper) waitDownloadACK(nextHopAddr *net.UDPAddr, dataRequest *packet
 
 	g.Requested.Mutex.Lock()
 	g.addDownloadACK(from, hash, ack)
-	chunkNbr := g.Requested.State[from][metaHashStr]
+	chunkNbr := g.Requested.State[name][metaHashStr]
 	g.Requested.Mutex.Unlock()
 	ticker := time.NewTicker(DOWNLOAD_TIMEOUT * time.Second)
 	for {
@@ -87,39 +87,48 @@ func (g *Gossiper) waitDownloadACK(nextHopAddr *net.UDPAddr, dataRequest *packet
 			g.Requested.Mutex.Lock()
 			g.removeDownloadACK(from, hash)
 			g.Requested.Mutex.Unlock()
-			g.processReply(dataReply, metaHashStr)
+			g.processReply(dataReply, name, metaHashStr)
 			return
 		}
 	}
 
 }
 
-func (g *Gossiper) processReply(dataReply *packet.DataReply, metaHashStr string) {
+func (g *Gossiper) processReply(dataReply *packet.DataReply,fileName, metaHashStr string) {
 	if dataReply.Data != nil && len(dataReply.Data) != 0{
-		from := dataReply.Origin
 
 		g.Requested.Mutex.Lock()
-		chunkNbr := g.Requested.GetAndIncrement(from, metaHashStr)
+		chunkNbr := g.Requested.GetAndIncrement(fileName, metaHashStr)
 		g.Requested.Mutex.Unlock()
 
 		g.FilesIndex.Mutex.RLock()
 		metadata := g.FilesIndex.Index[metaHashStr]
 		g.FilesIndex.Mutex.RUnlock()
 
+		if chunkNbr > 0{
+			metadata.LastReceivedChunk = chunkNbr
+		}
+
 		//TODO: réfléchir si besoin de lock modification de metadata
 		if chunkNbr == 0 {
 			metadata.Metafile = make([]byte, 0, len(dataReply.Data))
 			metadata.Metafile = append(metadata.Metafile, dataReply.Data...)
-			metadata.NbrChunks = uint32(math.Ceil(float64(len(dataReply.Data))/32.0))
+			metadata.NbrChunks = uint64(math.Ceil(float64(len(dataReply.Data))/32.0))
 			dataRequest, nextHopAddr := g.sendNextRequest(metadata, dataReply, chunkNbr+1)
-			go g.waitDownloadACK(nextHopAddr, dataRequest, metaHashStr, metadata.Name)
+			if dataRequest != nil && nextHopAddr != nil{
+				go g.waitDownloadACK(nextHopAddr, dataRequest, metaHashStr, metadata.Name)
+			}
+
 
 		} else if chunkNbr < metadata.NbrChunks {
-			fmt.Printf("DOWNLOADING %s chunk %d from %s\n", metadata.Name, chunkNbr, dataReply.Origin)
+
 			metadata.Chunks[hex.EncodeToString(dataReply.HashValue)] = make([]byte, 0, len(dataReply.Data))
 			metadata.Chunks[hex.EncodeToString(dataReply.HashValue)] = append(metadata.Chunks[hex.EncodeToString(dataReply.HashValue)], dataReply.Data...)
 			dataRequest, nextHopAddr := g.sendNextRequest(metadata, dataReply, chunkNbr+1)
-			go g.waitDownloadACK(nextHopAddr, dataRequest, metaHashStr, metadata.Name)
+
+			if dataRequest != nil && nextHopAddr != nil{
+				go g.waitDownloadACK(nextHopAddr, dataRequest, metaHashStr, metadata.Name)
+			}
 		} else {
 			metadata.Chunks[hex.EncodeToString(dataReply.HashValue)] = make([]byte, 0, len(dataReply.Data))
 			metadata.Chunks[hex.EncodeToString(dataReply.HashValue)] = append(metadata.Chunks[hex.EncodeToString(dataReply.HashValue)], dataReply.Data...)
@@ -130,12 +139,21 @@ func (g *Gossiper) processReply(dataReply *packet.DataReply, metaHashStr string)
 
 }
 
-func (g *Gossiper) sendNextRequest(metadata *fileSharing.Metadata, dataReply *packet.DataReply, nextChunk uint32) (*packet.DataRequest, *net.UDPAddr) {
+func (g *Gossiper) sendNextRequest(metadata *fileSharing.Metadata, dataReply *packet.DataReply, nextChunk uint64) (*packet.DataRequest, *net.UDPAddr) {
+
+	var dest string
+
+	if owner := g.Matches.GetOwner(metadata.Name, hex.EncodeToString(metadata.MetaHash), nextChunk); owner != ""{
+		dest = owner
+		fmt.Printf("DOWNLOADING %s chunk %d from %s\n", metadata.Name, nextChunk, owner)
+	}else{
+		return nil,nil
+	}
 
 	nextHashValue := metadata.Metafile[(nextChunk-1)*32 : nextChunk*32]
 	dataRequest := &packet.DataRequest{
 		Origin:      g.Name,
-		Destination: dataReply.Origin,
+		Destination: dest,
 		HopLimit:    9,
 		HashValue:   nextHashValue,
 	}
@@ -162,7 +180,7 @@ func (g *Gossiper) reconstructFile(metadata *fileSharing.Metadata) {
 		return
 	}
 
-	for i := uint32(0); i < metadata.NbrChunks; i++{
+	for i := uint64(0); i < metadata.NbrChunks; i++{
 		hashChunk := metadata.Metafile[i*32:(i+1)*32]
 		chunk := metadata.Chunks[hex.EncodeToString(hashChunk)]
 		metadata.Size += uint32(len(chunk))

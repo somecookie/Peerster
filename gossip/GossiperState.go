@@ -20,7 +20,7 @@ type GossiperState struct {
 	Mutex            sync.RWMutex
 }
 
-//GossiperStateFactory create a new empty state
+//GossiperStateFactory create a new empty state"
 func GossiperStateFactory() *GossiperState{
 	return &GossiperState{
 		VectorClock:      make([]packet.PeerStatus,0),
@@ -79,6 +79,7 @@ func (gs *GossiperState) updateVectorClock(message *packet.RumorMessage) {
 	}
 
 }
+
 
 func (gs *GossiperState) updateArchive(message *packet.RumorMessage) {
 

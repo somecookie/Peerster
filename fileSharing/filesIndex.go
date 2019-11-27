@@ -43,16 +43,26 @@ func (fi *FilesIndex)FindChunkFromHash(hash string) []byte{
 	return nil
 }
 
+//FindMatchingFiles finds all indexed files that match to the list keywords.
+//keywords []string the list of keywords
+//Returns a list of *packet.SearchResult
 func (fi *FilesIndex) FindMatchingFiles(keywords []string) []*packet.SearchResult{
 	results := make([]*packet.SearchResult,0)
 	for _, keyword := range keywords{
 		for _, metadata := range fi.Index{
 			if strings.Contains(metadata.Name, keyword){
+
+				chunkMap := make([]uint64,metadata.LastReceivedChunk)
+
+				for i := uint64(1); i <= metadata.LastReceivedChunk; i++{
+					chunkMap[i-1] = i
+				}
+
 				results = append(results, &packet.SearchResult{
 					FileName:     metadata.Name,
 					MetafileHash: metadata.MetaHash,
-					ChunkMap:     nil, //TODO
-					ChunkCount:   0,
+					ChunkMap:     chunkMap,
+					ChunkCount:   metadata.NbrChunks,
 				})
 			}
 		}

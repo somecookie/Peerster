@@ -3,11 +3,12 @@ package gossip
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
-	"math"
 	"math/rand"
 	"net"
+	"time"
 )
 
 var hasher = sha256.New()
@@ -25,9 +26,20 @@ func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, from
 		} else if receivedPacket.Private != nil {
 			go g.PrivateMessageRoutine(receivedPacket.Private)
 		} else if receivedPacket.DataRequest != nil {
+			/*fmt.Printf("DATA REQUEST from %s with origin %s and destination %s with hashvalue %s\n",
+			from, receivedPacket.DataRequest.Origin, receivedPacket.DataRequest.Destination,
+			hex.EncodeToString(receivedPacket.DataRequest.HashValue))*/
 			go g.DataRequestRoutine(receivedPacket.DataRequest)
 		} else if receivedPacket.DataReply != nil {
+			/*fmt.Printf("DATA REPLY from %s with origin %s and destination %s with hashvalue %s and %d bytes\n",
+				from, receivedPacket.DataReply.Origin, receivedPacket.DataReply.Destination,
+				hex.EncodeToString(receivedPacket.DataReply.HashValue), len(receivedPacket.DataReply.Data))*/
 			go g.DataReplyRoutine(receivedPacket.DataReply)
+		} else if receivedPacket.SearchRequest != nil {
+			fmt.Printf("SEARCH REQUEST from %s with origin %s and budget %d\n", from, receivedPacket.SearchRequest.Origin, receivedPacket.SearchRequest.Budget)
+			go g.SearchRequestRoutine(receivedPacket.SearchRequest, from)
+		} else if receivedPacket.SearchReply != nil {
+			go g.SearchReplyRoutine(receivedPacket.SearchReply)
 		}
 	}
 
@@ -35,7 +47,7 @@ func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, from
 
 //DataReplyRoutine handles the incoming dataReply.
 func (g *Gossiper) DataReplyRoutine(dataReply *packet.DataReply) {
-	if dataReply.Destination == g.Name{
+	if dataReply.Destination == g.Name {
 
 		hasher.Reset()
 		_, err := hasher.Write(dataReply.Data)
@@ -47,7 +59,7 @@ func (g *Gossiper) DataReplyRoutine(dataReply *packet.DataReply) {
 		hash := hasher.Sum(nil)
 		receivedHashString := hex.EncodeToString(dataReply.HashValue)
 		g.Requested.Mutex.RLock()
-		if hex.EncodeToString(hash) == receivedHashString  || len(dataReply.Data) == 0 || dataReply.Data == nil{
+		if hex.EncodeToString(hash) == receivedHashString || len(dataReply.Data) == 0 || dataReply.Data == nil {
 			if origins, ok := g.Requested.ACKs[dataReply.Origin]; ok {
 				if c, ok := origins[receivedHashString]; ok {
 					c <- dataReply
@@ -55,7 +67,7 @@ func (g *Gossiper) DataReplyRoutine(dataReply *packet.DataReply) {
 			}
 		}
 		g.Requested.Mutex.RUnlock()
-	}else if dataReply.HopLimit > 0 {
+	} else if dataReply.HopLimit > 0 {
 		dataReply.HopLimit -= 1
 
 		g.DSDV.Mutex.RLock()
@@ -76,7 +88,6 @@ func (g *Gossiper) DataRequestRoutine(dataRequest *packet.DataRequest) {
 		g.FilesIndex.Mutex.RLock()
 		chunk := g.FilesIndex.FindChunkFromHash(hex.EncodeToString(dataRequest.HashValue))
 		g.FilesIndex.Mutex.RUnlock()
-
 
 		dataReply := &packet.DataReply{
 			Origin:      g.Name,
@@ -138,15 +149,12 @@ func (g *Gossiper) RumorMessageRoutine(message *packet.RumorMessage, peerAddr *n
 	PrintPeers(g)
 	g.Peers.Mutex.RUnlock()
 
-
-
 	g.State.Mutex.Lock()
 	if message.ID >= g.GetNextID(message.Origin) && message.Origin != g.Name {
 
 		g.DSDV.Mutex.Lock()
 		g.DSDV.Update(message, peerAddr)
 		g.DSDV.Mutex.Unlock()
-
 
 		g.State.UpdateGossiperState(message)
 		g.sendStatusPacket(peerAddr)
@@ -256,46 +264,141 @@ func (g *Gossiper) PrivateMessageRoutine(privateMessage *packet.PrivateMessage) 
 	}
 }
 
-func (g *Gossiper) SearchRequestRoutine(sr *packet.SearchRequest, keywords []string){
+//SearchRequestRoutine is the routine that handles the SearchRequest
+//sr *packet.SearchRequest is the search we have to handle
+//from *net.UDPAddr is the address of the node from whom we received the SearchRequest. If from is nil, this means
+//that the SearchRequest comes from the client.
+func (g *Gossiper) SearchRequestRoutine(sr *packet.SearchRequest, from *net.UDPAddr) {
 	//TODO QUESTION: Do you need to substract 1 from budget the first time? and what to do if origin is self?
 
-	if sr.Origin == g.Name && keywords != nil {
-		//start request
+	if !g.DSR.Contains(sr) {
+		g.DSR.Add(sr)
+		if sr.Origin != g.Name {
+			g.FilesIndex.Mutex.RLock()
+			results := g.FilesIndex.FindMatchingFiles(sr.Keywords)
+			g.FilesIndex.Mutex.RUnlock()
+
+			g.DSDV.Mutex.RLock()
+			if len(results) > 0 && g.DSDV.Contains(sr.Origin) {
+				sreply := &packet.SearchReply{
+					Origin:      g.Name,
+					Destination: sr.Origin,
+					HopLimit:    9,
+					Results:     results,
+				}
+
+				g.sendMessage(&packet.GossipPacket{SearchReply: sreply}, g.DSDV.NextHop[sr.Origin])
+			}
+			g.DSDV.Mutex.RUnlock()
+
+		}
+
+		g.Peers.Mutex.RLock()
+		g.redistributeBudget(sr, from)
+		g.Peers.Mutex.RUnlock()
+
+		go g.startDuplicateTimer(sr)
 
 	}
 
-	//process request locally
-	g.FilesIndex.Mutex.RLock()
-	results := g.FilesIndex.FindMatchingFiles(sr.Keywords)
-	g.FilesIndex.Mutex.RUnlock()
+}
 
-	if len(results) > 0{
-		//TODO: reply
+//startDuplicateTimer starts a timer of 0.5 seconds and then remove sr from the set of possible duplicate search request
+func (g *Gossiper) startDuplicateTimer(sr *packet.SearchRequest) {
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+
+	select {
+	case <-ticker.C:
+		g.DSR.Remove(sr)
 	}
 
-	remainingBudget := sr.Budget - 1
-	g.Peers.Mutex.RLock()
+}
+
+//redistributeBudget redistributes the budget of a given SearchRequest sr by forwarding
+//it to other peers with an evenly distributed budget based on the sr's budget.
+//sr *packet.SearchRequest is the search request we need to forward with a redistributed budget.
+//from *net.UDPAddr is the address of the node from whom we received the SearchRequest. If from is nil, this means
+//that the SearchRequest comes from the client.
+func (g *Gossiper) redistributeBudget(sr *packet.SearchRequest, from *net.UDPAddr) {
+
+	//TODO check if that's correct!
+	remainingBudget := sr.Budget
 	nbrPeers := uint64(len(g.Peers.Set))
-	if remainingBudget > 0 && remainingBudget < nbrPeers{
-		randomPeers := g.Peers.NRandom(remainingBudget)
+	if from != nil {
+		remainingBudget -= 1
+		nbrPeers -= 1
+	}
+
+	if nbrPeers > 0 && remainingBudget > 0 && remainingBudget < nbrPeers {
+
+		var randomPeers []*net.UDPAddr
+		if from == nil {
+			randomPeers = g.Peers.NRandom(remainingBudget)
+		} else {
+			randomPeers = g.Peers.NRandom(remainingBudget, from)
+		}
+
 		forwardSR := &packet.SearchRequest{
 			Origin:   sr.Origin,
 			Budget:   1,
 			Keywords: sr.Keywords,
 		}
 
-		for _, dest := range randomPeers{
-			g.sendMessage(&packet.GossipPacket{SearchRequest:forwardSR},dest)
+		for _, dest := range randomPeers {
+			g.sendMessage(&packet.GossipPacket{SearchRequest: forwardSR}, dest)
 		}
-	} else if remainingBudget > 0{
+	} else if nbrPeers > 0 && remainingBudget > 0 {
 
-		for _,dest := range g.Peers.Set{
-			//TODO subdivide budget
+		newBudget := remainingBudget / nbrPeers
+		exceeding := remainingBudget % nbrPeers
 
-			//g.sendMessage(&packet.GossipPacket{SearchRequest:forwardSR},dest)
+		i := uint64(0)
+		for _, dest := range g.Peers.Set {
+
+			if from == nil || from.String() != dest.String() {
+				forwardSR := &packet.SearchRequest{
+					Origin:   sr.Origin,
+					Budget:   newBudget,
+					Keywords: sr.Keywords,
+				}
+
+				if i < exceeding {
+					i++
+					forwardSR.Budget += 1
+				}
+
+				g.sendMessage(&packet.GossipPacket{SearchRequest: forwardSR}, dest)
+			}
+
 		}
 
 	}
-	g.Peers.Mutex.RUnlock()
+}
 
+func (g *Gossiper) SearchReplyRoutine(reply *packet.SearchReply) {
+	g.fullMatches.Lock()
+	if reply.Destination == g.Name && g.fullMatches.n < THRESHOLD_MATCHES {
+		for _, result := range reply.Results{
+			packet.PrintSearchResult(result, reply.Origin)
+			full := g.Matches.AddNewResult(result,reply.Origin)
+			if full{
+				g.fullMatches.n += 1
+				if g.fullMatches.n == THRESHOLD_MATCHES {
+					fmt.Println("SEARCH FINISHED")
+					g.fullMatches.Unlock()
+					return
+				}
+			}
+		}
+		g.fullMatches.Unlock()
+	} else if reply.HopLimit > 0 {
+		g.fullMatches.Unlock()
+		g.DSDV.Mutex.RLock()
+		defer g.DSDV.Mutex.RUnlock()
+		reply.HopLimit -= 1
+		if g.DSDV.Contains(reply.Destination) {
+			g.sendMessage(&packet.GossipPacket{SearchReply: reply}, g.DSDV.NextHop[reply.Destination])
+		}
+	}
 }

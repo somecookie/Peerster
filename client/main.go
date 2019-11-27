@@ -28,24 +28,22 @@ func init() {
 	flag.StringVar(&file, "file", "", "file to be indexed by the gossiper")
 	flag.StringVar(&requestString, "request", "", "request a chunk or metafile of this hash")
 	flag.StringVar(&keywords, "keywords", "", "comma separated list of searched keywords")
-	flag.Uint64Var(&budget, "budget",0, "budget for the search")
+	flag.Uint64Var(&budget, "budget", 0, "budget for the search")
 
 	flag.Parse()
 }
 
 func validFlags() bool {
 
-	if dest != "" && file != "" && requestString != "" && msg == "" && keywords == "" && budget == 0 {
-		return true //download without previous search
-	} else if dest == "" && file != "" && requestString != "" && msg == "" && keywords == "" && budget == 0{
-		return true //download with previous search
+	if file != "" && requestString != "" && msg == "" && keywords == "" && budget == 0 {
+		return true //download
 	} else if dest != "" && file == "" && requestString == "" && msg != "" {
 		return true //private message
 	} else if dest == "" && file != "" && requestString == "" && msg == "" {
 		return true //file sharing
 	} else if dest == "" && file == "" && requestString == "" && msg != "" {
 		return true //rumor message
-	}else if dest == "" && file == "" && requestString == "" && msg == "" && keywords != ""{
+	} else if dest == "" && file == "" && requestString == "" && msg == "" && keywords != "" {
 		return true //search
 	} else {
 		return false
@@ -85,11 +83,11 @@ func main() {
 		msg.File = &file
 	}
 
-	if keywords != ""{
+	if keywords != "" {
 		msg.Keywords = &keywords
 	}
 
-	if budget > 0{
+	if budget > 0 {
 		msg.Budget = &budget
 	}
 
