@@ -7,7 +7,6 @@ import (
 	"sync"
 )
 
-//TODO: document those structs
 //SearchRequest are the messages search for a file
 //Origin   string is the node that starts the request
 //Budget   uint64 is the amount of work still available for this request

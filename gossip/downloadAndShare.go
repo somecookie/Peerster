@@ -143,9 +143,9 @@ func (g *Gossiper) sendNextRequest(metadata *fileSharing.Metadata, dataReply *pa
 
 	var dest string
 
-	if owner := g.Matches.GetOwner(metadata.Name, hex.EncodeToString(metadata.MetaHash), nextChunk); owner != ""{
-		dest = owner
-		fmt.Printf("DOWNLOADING %s chunk %d from %s\n", metadata.Name, nextChunk, owner)
+	if owners := g.Matches.GetOwners(metadata.Name, hex.EncodeToString(metadata.MetaHash), nextChunk); owners != nil{
+		dest = owners[0]
+		fmt.Printf("DOWNLOADING %s chunk %d from %s\n", metadata.Name, nextChunk, dest)
 	}else{
 		return nil,nil
 	}

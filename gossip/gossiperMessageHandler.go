@@ -269,10 +269,9 @@ func (g *Gossiper) PrivateMessageRoutine(privateMessage *packet.PrivateMessage) 
 //from *net.UDPAddr is the address of the node from whom we received the SearchRequest. If from is nil, this means
 //that the SearchRequest comes from the client.
 func (g *Gossiper) SearchRequestRoutine(sr *packet.SearchRequest, from *net.UDPAddr) {
-	//TODO QUESTION: Do you need to substract 1 from budget the first time? and what to do if origin is self?
-
 	if !g.DSR.Contains(sr) {
 		g.DSR.Add(sr)
+
 		if sr.Origin != g.Name {
 			g.FilesIndex.Mutex.RLock()
 			results := g.FilesIndex.FindMatchingFiles(sr.Keywords)
@@ -380,9 +379,14 @@ func (g *Gossiper) SearchReplyRoutine(reply *packet.SearchReply) {
 	g.fullMatches.Lock()
 	if reply.Destination == g.Name && g.fullMatches.n < THRESHOLD_MATCHES {
 		for _, result := range reply.Results{
-			packet.PrintSearchResult(result, reply.Origin)
-			full := g.Matches.AddNewResult(result,reply.Origin)
-			if full{
+
+			newResult := g.Matches.AddNewResult(result,reply.Origin)
+
+			if newResult{
+				packet.PrintSearchResult(result, reply.Origin)
+			}
+
+			if newResult && result.ChunkCount == uint64(len(result.ChunkMap)){
 				g.fullMatches.n += 1
 				if g.fullMatches.n == THRESHOLD_MATCHES {
 					fmt.Println("SEARCH FINISHED")

@@ -31,8 +31,8 @@ func (g *Gossiper) HandleMessage(message *packet.Message) {
 		//packet.PrintClientMessage(message)
 
 		if message.Destination == nil{
-			if owner := g.Matches.GetOwner(*message.File, hex.EncodeToString(*message.Request),1); owner != ""{
-				message.Destination = &owner
+			if owners := g.Matches.GetOwners(*message.File, hex.EncodeToString(*message.Request),1); owners != nil{
+				message.Destination = &owners[0]
 			}else{
 				return
 			}
@@ -52,6 +52,7 @@ func (g *Gossiper) startSearchRequest(message *packet.Message){
 	g.fullMatches.n = 0
 	g.fullMatches.Unlock()
 
+
 	g.Matches.Clear()
 
 	if message.Budget != nil {
@@ -68,6 +69,7 @@ func (g *Gossiper) startSearchRequest(message *packet.Message){
 			Budget:   uint64(budget),
 			Keywords: keywords,
 		}
+
 		go g.SearchRequestRoutine(sr, nil)
 
 		ticker := time.NewTicker(time.Second)
@@ -79,12 +81,14 @@ func (g *Gossiper) startSearchRequest(message *packet.Message){
 
 				g.fullMatches.Lock()
 				if budget >= MAX_BUDGET || g.fullMatches.n== THRESHOLD_MATCHES {
+					g.fullMatches.Unlock()
 					return
 				}
 				g.fullMatches.Unlock()
 
 				budget *= 2
 				sr.Budget = uint64(budget)
+
 
 				go g.SearchRequestRoutine(sr, nil)
 			}
