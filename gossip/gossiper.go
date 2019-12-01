@@ -102,10 +102,10 @@ func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simp
 			Mutex:       sync.Mutex{},
 			n: 0,
 		},
-		Matches:MatchesFactory(),
-		hoplimit: hoplimit,
-		TLCMajority:TLCMajortiyFactory(N),
-		stubbornTimeout:stubbornTimeout,
+		Matches:         MatchesFactory(),
+		hoplimit:        hoplimit,
+		TLCMajority:     TLCMajorityFactory(N),
+		stubbornTimeout: stubbornTimeout,
 	}, nil
 }
 
@@ -273,4 +273,5 @@ func (g *Gossiper) createNewRouteRumor() *packet.GossipPacket{
 	g.State.UpdateGossiperState(gp)
 	return gp
 }
+
 

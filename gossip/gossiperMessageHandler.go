@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
+	"log"
 	"math/rand"
 	"net"
 	"time"
@@ -19,7 +20,7 @@ func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, from
 			go g.SimpleMessageRoutine(receivedPacket.Simple, from)
 		}
 	} else {
-		if receivedPacket.Rumor != nil {
+		if receivedPacket.Rumor != nil || receivedPacket.TLCMessage != nil{
 			go g.RumorMessageRoutine(receivedPacket, from)
 		} else if receivedPacket.Status != nil {
 			go g.StatusPacketRoutine(receivedPacket.Status, from)
@@ -40,10 +41,8 @@ func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, from
 			go g.SearchRequestRoutine(receivedPacket.SearchRequest, from)
 		} else if receivedPacket.SearchReply != nil {
 			go g.SearchReplyRoutine(receivedPacket.SearchReply)
-		} else if receivedPacket.TLCMessage != nil{
-			go g.TLCRoutine(receivedPacket, from)
 		}else if receivedPacket.Ack != nil{
-			go g.AckRoutine(receivedPacket.Ack)
+			go g.TLCAckRoutine(receivedPacket.Ack)
 		}
 	}
 
@@ -146,42 +145,49 @@ func (g *Gossiper) SimpleMessageRoutine(message *packet.SimpleMessage, peerAddr 
 //RumorMessageRoutine handles the RumorMessage.
 //It first prints the message and g's Peers. Then it sends an ack to the peer that send the rumor.
 //Finally, if it is a new Rumor g starts Rumormongering
-func (g *Gossiper) RumorMessageRoutine(message *packet.GossipPacket, peerAddr *net.UDPAddr) {
+func (g *Gossiper) RumorMessageRoutine(gossipPacket *packet.GossipPacket, peerAddr *net.UDPAddr) {
 
-	origin,ID := message.GetOriginAndID()
+	origin,ID := gossipPacket.GetOriginAndID()
 
 	if ID == 0 && origin == ""{
 		return
 	}
 
 	var text string
-	if message.Rumor != nil{
-		packet.PrintRumorMessage(message.Rumor, peerAddr)
+	if gossipPacket.Rumor != nil{
+		packet.PrintRumorMessage(gossipPacket.Rumor, peerAddr)
 		g.Peers.Mutex.RLock()
 		PrintPeers(g)
 		g.Peers.Mutex.RUnlock()
-		text = message.Rumor.Text
+		text = gossipPacket.Rumor.Text
 	}else{
 		text = ""
+		log.Printf("Recceived TLCMessage origin %s ID %d\n", origin, ID)
 	}
 
 
 	g.State.Mutex.Lock()
+	defer g.State.Mutex.Unlock()
 	if ID >= g.GetNextID(origin) && origin!= g.Name {
 
 		g.DSDV.Mutex.Lock()
 		g.DSDV.Update(ID, origin,text, peerAddr)
 		g.DSDV.Mutex.Unlock()
 
-		g.State.UpdateGossiperState(message)
+		g.State.UpdateGossiperState(gossipPacket)
+		log.Printf("New Rumor, Send Status Packet to %s\n", peerAddr)
 		g.sendStatusPacket(peerAddr)
-		g.State.Mutex.Unlock()
 
-		g.Rumormongering(message, false, peerAddr, nil)
+		log.Printf("New Rumor, Mongering\n")
+		g.Rumormongering(gossipPacket, false, peerAddr, nil)
 	} else {
 
+		log.Printf("Old Rumor, Send Status Packet to %s\n", peerAddr)
 		g.sendStatusPacket(peerAddr)
-		g.State.Mutex.Unlock()
+	}
+
+	if gossipPacket.TLCMessage != nil && origin != g.Name{
+		g.HandleTLCMessage(gossipPacket.TLCMessage)
 	}
 
 }
@@ -229,6 +235,7 @@ func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr 
 
 	if b {
 		g.State.Mutex.RUnlock()
+		log.Println("Mongering missing packets")
 		g.Rumormongering(msg, false, nil, peerAddr)
 		return
 	}
@@ -248,6 +255,7 @@ func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr 
 	}
 
 	if rand.Int()%2 == 0 && gossipPacket != nil {
+		log.Println("Mongering flipped coin")
 		g.Rumormongering(gossipPacket, true, peerAddr, nil)
 	}
 }

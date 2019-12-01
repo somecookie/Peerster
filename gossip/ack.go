@@ -42,7 +42,6 @@ func (g *Gossiper) WaitForAck(message *packet.GossipPacket, peerAddr *net.UDPAdd
 		g.pendingACK.Mutex.Lock()
 		g.RemoveACKed(message, peerAddr)
 		g.pendingACK.Mutex.Unlock()
-
 		g.Rumormongering(message, false, nil, nil)
 
 	case sp := <-ackChannel:
