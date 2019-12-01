@@ -13,6 +13,9 @@ var guiPort string
 var runGUI bool
 var rtimer int
 var antiEntropy int
+var hoplimit int
+var N int
+var stubbornTimeout int
 
 
 func init() {
@@ -24,6 +27,9 @@ func init() {
 	simple := flag.Bool("simple", false, "run gossip in simple broadcast mode")
 	flag.IntVar(&antiEntropy,"antiEntropy", 10, "time in seconds for the anti-entropy (default 10 seconds)")
 	flag.IntVar(&rtimer,"rtimer", 0, "Timeout in seconds to send route rumors. 0 (default) means disable sending route rumors")
+	flag.IntVar(&hoplimit,"hoplimit", 10, "Hoplimit for the TLCMessage")
+	flag.IntVar(&N,"N", 1, "Number of gossipers of the network")
+	flag.IntVar(&stubbornTimeout,"stubbornTimeout", 5, "Time in seconds before a gossiper stubbornly resend a TLCMessage")
 	flag.BoolVar(&runGUI, "runGUI", false, "allow to access a gui from this gossiper")
 	flag.Parse()
 	handleFlags(*peersStr, *gossipAddr, *uiPort, *name, *simple)
@@ -34,7 +40,7 @@ func init() {
 func handleFlags(peersStr string, gossipAddr string, uiPort string, name string, simple bool) {
 	peers := getPeersAddr(peersStr, gossipAddr)
 	var err error
-	g, err = gossip.GossiperFactory(gossipAddr, uiPort, name, peers, simple, antiEntropy, rtimer)
+	g, err = gossip.GossiperFactory(gossipAddr, uiPort, name, peers, simple, antiEntropy, rtimer, hoplimit, N,stubbornTimeout)
 	helper.HandleCrashingErr(err)
 }
 

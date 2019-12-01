@@ -3,12 +3,14 @@ package gossip
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/somecookie/Peerster/blockchain"
 	"github.com/somecookie/Peerster/fileSharing"
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
 	"math"
 	"net"
 	"os"
+	"sync/atomic"
 	"time"
 )
 
@@ -225,5 +227,30 @@ func (g *Gossiper) IndexFile(fileName string) {
 		g.FilesIndex.Mutex.Lock()
 		g.FilesIndex.Store(metadata)
 		g.FilesIndex.Mutex.Unlock()
+		
+		bp := blockchain.BlockPublish{
+			PrevHash:    [32]byte{},
+			Transaction: blockchain.TxPublish{
+				Name:         metadata.Name,
+				Size:         int64(metadata.Size),
+				MetafileHash: metadata.MetaHash,
+			},
+		}
+
+		atomic.AddUint32(&g.counter, 1)
+		tlcMsg := &packet.TLCMessage{
+			Origin:      g.Name,
+			ID:          g.counter,
+			Confirmed:   -1,
+			TxBlock:     bp,
+			VectorClock: nil,
+			Fitness:     0,
+		}
+
+		gp := &packet.GossipPacket{TLCMessage:tlcMsg}
+		g.TLCMajority.SelfAdd(tlcMsg.ID, g.Name)
+		g.Rumormongering(gp,false,nil,nil)
+		go g.Stubborn(tlcMsg)
+		
 	}
 }

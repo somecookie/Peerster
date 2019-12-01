@@ -16,6 +16,8 @@ type GossipPacket struct {
 	DataReply     *DataReply
 	SearchRequest *SearchRequest
 	SearchReply   *SearchReply
+	TLCMessage    *TLCMessage
+	Ack           *TLCAck
 }
 
 //GetPacketBytes serializes the GossipPacket message
@@ -37,4 +39,14 @@ func GetGossipPacket(buffer []byte, n int) (*GossipPacket, error) {
 		return nil, err
 	}
 	return receivedPacket, err
+}
+
+func (gp *GossipPacket) GetOriginAndID() (string, uint32){
+	if gp.Rumor != nil{
+		return gp.Rumor.Origin, gp.Rumor.ID
+	}else if gp.TLCMessage != nil {
+		return gp.TLCMessage.Origin, gp.TLCMessage.ID
+	}else{
+		return "",0
+	}
 }

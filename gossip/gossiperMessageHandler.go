@@ -20,7 +20,7 @@ func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, from
 		}
 	} else {
 		if receivedPacket.Rumor != nil {
-			go g.RumorMessageRoutine(receivedPacket.Rumor, from)
+			go g.RumorMessageRoutine(receivedPacket, from)
 		} else if receivedPacket.Status != nil {
 			go g.StatusPacketRoutine(receivedPacket.Status, from)
 		} else if receivedPacket.Private != nil {
@@ -40,6 +40,10 @@ func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, from
 			go g.SearchRequestRoutine(receivedPacket.SearchRequest, from)
 		} else if receivedPacket.SearchReply != nil {
 			go g.SearchReplyRoutine(receivedPacket.SearchReply)
+		} else if receivedPacket.TLCMessage != nil{
+			go g.TLCRoutine(receivedPacket, from)
+		}else if receivedPacket.Ack != nil{
+			go g.AckRoutine(receivedPacket.Ack)
 		}
 	}
 
@@ -142,18 +146,31 @@ func (g *Gossiper) SimpleMessageRoutine(message *packet.SimpleMessage, peerAddr 
 //RumorMessageRoutine handles the RumorMessage.
 //It first prints the message and g's Peers. Then it sends an ack to the peer that send the rumor.
 //Finally, if it is a new Rumor g starts Rumormongering
-func (g *Gossiper) RumorMessageRoutine(message *packet.RumorMessage, peerAddr *net.UDPAddr) {
-	packet.PrintRumorMessage(message, peerAddr)
+func (g *Gossiper) RumorMessageRoutine(message *packet.GossipPacket, peerAddr *net.UDPAddr) {
 
-	g.Peers.Mutex.RLock()
-	PrintPeers(g)
-	g.Peers.Mutex.RUnlock()
+	origin,ID := message.GetOriginAndID()
+
+	if ID == 0 && origin == ""{
+		return
+	}
+
+	var text string
+	if message.Rumor != nil{
+		packet.PrintRumorMessage(message.Rumor, peerAddr)
+		g.Peers.Mutex.RLock()
+		PrintPeers(g)
+		g.Peers.Mutex.RUnlock()
+		text = message.Rumor.Text
+	}else{
+		text = ""
+	}
+
 
 	g.State.Mutex.Lock()
-	if message.ID >= g.GetNextID(message.Origin) && message.Origin != g.Name {
+	if ID >= g.GetNextID(origin) && origin!= g.Name {
 
 		g.DSDV.Mutex.Lock()
-		g.DSDV.Update(message, peerAddr)
+		g.DSDV.Update(ID, origin,text, peerAddr)
 		g.DSDV.Mutex.Unlock()
 
 		g.State.UpdateGossiperState(message)
@@ -204,7 +221,7 @@ func (g *Gossiper) StatusPacketRoutine(statusPacket *packet.StatusPacket, peerAd
 
 }
 
-func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr *net.UDPAddr, rumorMessage *packet.RumorMessage) {
+func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr *net.UDPAddr, gossipPacket *packet.GossipPacket) {
 
 	g.State.Mutex.RLock()
 	//Check if S has messages that R has not seen yet
@@ -226,12 +243,12 @@ func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr 
 	}
 	g.State.Mutex.RUnlock()
 
-	if rumorMessage == nil {
+	if gossipPacket == nil {
 		packet.PrintInSync(peerAddr)
 	}
 
-	if rand.Int()%2 == 0 && rumorMessage != nil {
-		g.Rumormongering(rumorMessage, true, peerAddr, nil)
+	if rand.Int()%2 == 0 && gossipPacket != nil {
+		g.Rumormongering(gossipPacket, true, peerAddr, nil)
 	}
 }
 
