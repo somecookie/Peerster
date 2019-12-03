@@ -52,7 +52,6 @@ func (g *Gossiper) startSearchRequest(message *packet.Message){
 	g.fullMatches.n = 0
 	g.fullMatches.Unlock()
 
-
 	g.Matches.Clear()
 
 	if message.Budget != nil {

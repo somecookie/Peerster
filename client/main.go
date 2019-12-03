@@ -37,11 +37,11 @@ func validFlags() bool {
 
 	if file != "" && requestString != "" && msg == "" && keywords == "" && budget == 0 {
 		return true //download
-	} else if dest != "" && file == "" && requestString == "" && msg != "" {
+	} else if dest != "" && file == "" && requestString == "" && msg != "" && keywords == "" && budget == 0{
 		return true //private message
-	} else if dest == "" && file != "" && requestString == "" && msg == "" {
+	} else if dest == "" && file != "" && requestString == "" && msg == "" && keywords == "" && budget == 0{
 		return true //file sharing
-	} else if dest == "" && file == "" && requestString == "" && msg != "" {
+	} else if dest == "" && file == "" && requestString == "" && msg != ""&& keywords == "" && budget == 0 {
 		return true //rumor message
 	} else if dest == "" && file == "" && requestString == "" && msg == "" && keywords != "" {
 		return true //search

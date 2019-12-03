@@ -33,10 +33,11 @@ type Gossiper struct {
 	hoplimit        int
 	TLCMajority     *TLCMajority
 	stubbornTimeout int
+	round           uint32
 }
 
 //GossiperFactory creates a Gossiper from the parsed flags of main.go.
-func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simple bool, antiEntropy, rtimer, hoplimit, N,stubbornTimeout int) (*Gossiper, error) {
+func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simple bool, antiEntropy, rtimer, hoplimit, N, stubbornTimeout int) (*Gossiper, error) {
 
 	ipPort := strings.Split(gossipAddr, ":")
 	if len(ipPort) != 2 {
@@ -99,13 +100,14 @@ func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simp
 		Requested:   fileSharing.DownloadStateFactory(),
 		DSR:         packet.DSRFactory(),
 		fullMatches: &FullMatchCounter{
-			Mutex:       sync.Mutex{},
-			n: 0,
+			Mutex: sync.Mutex{},
+			n:     0,
 		},
 		Matches:         MatchesFactory(),
 		hoplimit:        hoplimit,
 		TLCMajority:     TLCMajorityFactory(N),
 		stubbornTimeout: stubbornTimeout,
+		round: 0,
 	}, nil
 }
 
@@ -260,7 +262,7 @@ func (g *Gossiper) RouteRumorRoutine() {
 }
 
 //createNewRouteRumor creates a new route rumor message
-func (g *Gossiper) createNewRouteRumor() *packet.GossipPacket{
+func (g *Gossiper) createNewRouteRumor() *packet.GossipPacket {
 	atomic.AddUint32(&g.counter, 1)
 	routeRumorMessage := &packet.RumorMessage{
 		Origin: g.Name,
@@ -268,10 +270,8 @@ func (g *Gossiper) createNewRouteRumor() *packet.GossipPacket{
 		Text:   "",
 	}
 
-	gp := &packet.GossipPacket{Rumor:routeRumorMessage}
+	gp := &packet.GossipPacket{Rumor: routeRumorMessage}
 
 	g.State.UpdateGossiperState(gp)
 	return gp
 }
-
-

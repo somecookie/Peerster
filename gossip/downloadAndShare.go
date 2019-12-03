@@ -226,7 +226,20 @@ func (g *Gossiper) IndexFile(fileName string) {
 		g.FilesIndex.Store(metadata)
 		g.FilesIndex.Mutex.Unlock()
 
-		g.BroadcastNewFile(metadata)
+		g.TLCMajority.Lock()
+		defer g.TLCMajority.Unlock()
+		if g.TLCMajority.First{
+			g.TLCMajority.First = false
+			g.BroadcastNewFile(metadata)
+			//TODO: voir si ça marche?
+			g.TryNextRound()
+
+		}else{
+			g.TLCMajority.Queue.Enqueue(metadata)
+			g.TryNextRound()
+
+		}
+
 
 	}
 }

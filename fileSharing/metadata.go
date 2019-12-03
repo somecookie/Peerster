@@ -109,3 +109,29 @@ func (metadata *Metadata) hash(chunk []byte) ([]byte, error) {
 	hash := hasher.Sum(nil)
 	return hash, nil
 }
+
+type MetadataQueue struct{
+	metadatas []*Metadata
+}
+
+func MetadataQueueFactory() *MetadataQueue{
+	return &MetadataQueue{metadatas:make([]*Metadata,0)}
+}
+
+func (q *MetadataQueue)Enqueue(metadata *Metadata){
+	q.metadatas = append(q.metadatas, metadata)
+}
+
+func (q* MetadataQueue)Dequeue() *Metadata{
+	if len(q.metadatas) == 0{
+		return nil
+	}else{
+		result := q.metadatas[0]
+		q.metadatas = q.metadatas[1:]
+		return result
+	}
+}
+
+func (q* MetadataQueue)Size() int{
+	return len(q.metadatas)
+}

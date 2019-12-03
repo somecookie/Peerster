@@ -16,11 +16,23 @@ import (
 //Acks         map[uint32][]string is the mapping between an ID and all the peers that have already acknowledged the TLCMessage with this ID
 //AcksChannels map[uint32]chan bool is the mapping an ID of a TLCMessage and its associated channel
 //Total        int is the total number of Peers in the network. Therefore, the majority is Total/2.
+//MyRound      uint32
+//Queue        *fileSharing.MetadataQueue is the FIFO used to get the indexing command.
+//Confirmed    map[uint32][]string  is a mapping from a round to the gossiper who sent a confirmed message.
+//FutureMsg    []packet.TLCMessage are the messages that were not accepted because of their vector clock.
+//LastID       uint32 is the last ID used by the gossiper owning the TLCMajority
 type TLCMajority struct {
 	sync.RWMutex
 	Acks         map[uint32][]string
 	AcksChannels map[uint32]chan bool
 	Total        int
+	MyRound      uint32
+	OtherRounds  map[string]uint32
+	Queue        *fileSharing.MetadataQueue
+	Confirmed    map[uint32][]string
+	FutureMsg    []*packet.TLCMessage
+	LastID       uint32
+	First bool
 }
 
 func TLCMajorityFactory(N int) *TLCMajority {
@@ -29,6 +41,13 @@ func TLCMajorityFactory(N int) *TLCMajority {
 		Acks:         make(map[uint32][]string),
 		AcksChannels: make(map[uint32]chan bool),
 		Total:        N,
+		MyRound:      0,
+		OtherRounds: make(map[string]uint32),
+		Queue:        fileSharing.MetadataQueueFactory(),
+		Confirmed:    make(map[uint32][]string),
+		FutureMsg:    make([]*packet.TLCMessage, 0),
+		LastID:       0,
+		First: true,
 	}
 }
 
@@ -36,8 +55,6 @@ func TLCMajorityFactory(N int) *TLCMajority {
 //ID uint32 is the ID of the newly created TLCMessage
 //selfName string is the name of the gossiper
 func (tm *TLCMajority) SelfAdd(ID uint32, selfName string) {
-	tm.Lock()
-	defer tm.Unlock()
 
 	tm.Acks[ID] = make([]string, 0, tm.Total/2+1)
 	tm.Acks[ID] = append(tm.Acks[ID], selfName)
@@ -50,10 +67,7 @@ func (tm *TLCMajority) SelfAdd(ID uint32, selfName string) {
 //Notice that the majority can only be reached by one ack, the next ack will simply be discarded.
 //If the majority, the channel associated to the ack allows to stop the stubborn timer and continue the process.
 func (tm *TLCMajority) AddNewAck(ack *packet.TLCAck) bool {
-	tm.Lock()
-	defer tm.Unlock()
-
-	if len(tm.Acks[ack.ID]) > tm.Total/2 {
+	if len(tm.Acks[ack.ID]) > tm.Total/2 || ack.ID != tm.LastID {
 		return false
 	}
 
@@ -80,8 +94,6 @@ func (tm *TLCMajority) AddNewAck(ack *packet.TLCAck) bool {
 }
 
 func (tm *TLCMajority) PrintReBroadcast(confirmed *packet.TLCMessage) {
-	tm.RLock()
-	defer tm.RUnlock()
 	peersList := tm.Acks[uint32(confirmed.Confirmed)]
 	witnesses := strings.Join(peersList, ",")
 	fmt.Printf("RE-BROADCAST ID %d WITNESSES %s\n", confirmed.Confirmed, witnesses)
@@ -89,12 +101,20 @@ func (tm *TLCMajority) PrintReBroadcast(confirmed *packet.TLCMessage) {
 
 //GetChannel allows you to get the channel corresponding to the given id. It returns nil if the ID is not valid.
 func (tm *TLCMajority) GetChannel(ID uint32) chan bool {
-	tm.RLock()
-	defer tm.RUnlock()
 	if c, ok := tm.AcksChannels[ID]; ok {
 		return c
 	} else {
 		return nil
+	}
+}
+
+func (tm *TLCMajority) RemoveFromFuture(message *packet.TLCMessage) {
+	for i, msg := range tm.FutureMsg {
+		if message == msg {
+			tm.FutureMsg[i], tm.FutureMsg[len(tm.FutureMsg)-1] = tm.FutureMsg[len(tm.FutureMsg)-1], tm.FutureMsg[i]
+			tm.FutureMsg = tm.FutureMsg[:len(tm.FutureMsg)-1]
+			return
+		}
 	}
 }
 
@@ -104,7 +124,9 @@ func (tm *TLCMajority) GetChannel(ID uint32) chan bool {
 func (g *Gossiper) Stubborn(tlcMessage *packet.TLCMessage) {
 	ticker := time.NewTicker(time.Duration(g.stubbornTimeout) * time.Second)
 
+	g.TLCMajority.RLock()
 	ackChannel := g.TLCMajority.GetChannel(tlcMessage.ID)
+	g.TLCMajority.RUnlock()
 
 	if ackChannel == nil {
 		return
@@ -113,25 +135,36 @@ func (g *Gossiper) Stubborn(tlcMessage *packet.TLCMessage) {
 	for {
 		select {
 		case <-ticker.C:
-			log.Println("Mongering stubborn")
+			//log.Println("Mongering stubborn")
 			g.Rumormongering(&packet.GossipPacket{TLCMessage: tlcMessage}, false, nil, nil)
-		case <-ackChannel:
+		case majority := <-ackChannel:
 			ticker.Stop()
 			close(ackChannel)
-			atomic.AddUint32(&g.counter, 1)
-			confirmation := &packet.TLCMessage{
-				Origin:      g.Name,
-				ID:          g.counter,
-				Confirmed:   int(tlcMessage.ID),
-				TxBlock:     tlcMessage.TxBlock,
-				VectorClock: tlcMessage.VectorClock,
-				Fitness:     tlcMessage.Fitness,
+			if majority {
+				atomic.AddUint32(&g.counter, 1)
+				confirmation := &packet.TLCMessage{
+					Origin:      g.Name,
+					ID:          g.counter,
+					Confirmed:   int(tlcMessage.ID),
+					TxBlock:     tlcMessage.TxBlock,
+					VectorClock: tlcMessage.VectorClock,
+					Fitness:     tlcMessage.Fitness,
+				}
+				g.TLCMajority.RLock()
+				g.TLCMajority.PrintReBroadcast(confirmation)
+				g.TLCMajority.RUnlock()
+
+				gp := &packet.GossipPacket{TLCMessage: confirmation}
+				g.State.UpdateGossiperState(gp)
+				//log.Println("Mongering Majority")
+				g.Rumormongering(gp, false, nil, nil)
+
+				g.TLCMajority.Lock()
+				g.TLCMajority.Confirmed[g.TLCMajority.MyRound] = append(g.TLCMajority.Confirmed[g.TLCMajority.MyRound], g.Name)
+				g.TryNextRound()
+				g.TLCMajority.Unlock()
+
 			}
-			g.TLCMajority.PrintReBroadcast(confirmation)
-			gp := &packet.GossipPacket{TLCMessage: confirmation}
-			g.State.UpdateGossiperState(gp)
-			log.Println("Mongering Majority")
-			g.Rumormongering( gp,false, nil, nil)
 			return
 		}
 	}
@@ -148,20 +181,28 @@ func (g *Gossiper) BroadcastNewFile(metadata *fileSharing.Metadata) {
 			MetafileHash: metadata.MetaHash,
 		},
 	}
+
+	g.State.Mutex.RLock()
+	vc := &packet.StatusPacket{
+		Want: g.State.VectorClock,
+	}
+	g.State.Mutex.RUnlock()
+
 	atomic.AddUint32(&g.counter, 1)
+	g.TLCMajority.LastID = g.counter
 	tlcMsg := &packet.TLCMessage{
 		Origin:      g.Name,
 		ID:          g.counter,
 		Confirmed:   -1,
 		TxBlock:     bp,
-		VectorClock: nil,
+		VectorClock: vc,
 		Fitness:     0,
 	}
 	gp := &packet.GossipPacket{TLCMessage: tlcMsg}
 	g.TLCMajority.SelfAdd(tlcMsg.ID, g.Name)
 	g.State.UpdateGossiperState(gp)
 
-	log.Println("Mongering new file")
+	//log.Println("Mongering new file")
 	g.Rumormongering(gp, false, nil, nil)
 	go g.Stubborn(tlcMsg)
 }
@@ -170,23 +211,82 @@ func (g *Gossiper) BroadcastNewFile(metadata *fileSharing.Metadata) {
 //tlcMessage *packet.TLCMessage is the TLCMessage received by the gossiper
 func (g *Gossiper) HandleTLCMessage(tlcMessage *packet.TLCMessage) {
 	//check validity
+	g.TLCMajority.Lock()
+	defer g.TLCMajority.Unlock()
 
-	if tlcMessage.Confirmed == -1 {
-		packet.PrintUnconfirmedMessage(tlcMessage)
 
-		ack := &packet.TLCAck{
-			Origin:      g.Name,
-			ID:          tlcMessage.ID,
-			Destination: tlcMessage.Origin,
-			HopLimit:    uint32(g.hoplimit),
+	g.TLCMajority.FutureMsg = append(g.TLCMajority.FutureMsg, tlcMessage)
+
+	for _, msg := range g.TLCMajority.FutureMsg {
+		if g.SatisfyVC(msg) {
+			log.Println("RECEIVE TLCMESSAGE ",tlcMessage.ID)
+			g.TLCMajority.RemoveFromFuture(msg)
+			if msg.Confirmed == -1 {
+				packet.PrintUnconfirmedMessage(tlcMessage)
+
+				ack := &packet.TLCAck{
+					Origin:      g.Name,
+					ID:          msg.ID,
+					Destination: msg.Origin,
+					HopLimit:    uint32(g.hoplimit),
+				}
+				packet.PrintSendingTLCAck(ack)
+
+				//TODO bouger cette fonction, elle est jamais appelé si en retard
+				if _,ok := g.TLCMajority.OtherRounds[msg.Origin]; !ok{
+					g.TLCMajority.OtherRounds[msg.Origin] = 1
+				}else{
+					g.TLCMajority.OtherRounds[msg.Origin]+=1
+				}
+
+				if round, ok := g.TLCMajority.OtherRounds[tlcMessage.Origin]; !ok{
+					if g.TLCMajority.MyRound != 0{
+						return
+					}
+				}else if round-1 < g.TLCMajority.MyRound{
+					return
+				}
+
+				g.TLCAckRoutine(ack)
+
+			} else {
+				packet.PrintConfirmedMessage(msg)
+				r := g.TLCMajority.OtherRounds[msg.Origin]-1
+				//fmt.Println("Its round is ",r)
+				g.TLCMajority.Confirmed[r] = append(g.TLCMajority.Confirmed[r], msg.Origin)
+				g.TryNextRound()
+			}
 		}
-		packet.PrintSendingTLCAck(ack)
-		g.TLCAckRoutine(ack)
-
-	} else {
-		packet.PrintConfirmedMessage(tlcMessage)
 	}
 
+}
+
+func (g *Gossiper) SatisfyVC(msg *packet.TLCMessage) bool {
+	g.State.Mutex.RLock()
+	defer g.State.Mutex.RUnlock()
+
+	for _, ps := range g.State.VectorClock {
+		for _, psMsg := range msg.VectorClock.Want {
+			if ps.Identifier == psMsg.Identifier && ps.NextID < psMsg.NextID {
+				return false
+			}
+		}
+	}
+
+	for _,psMsg := range msg.VectorClock.Want{
+		inVC := false
+		for _,ps := range g.State.VectorClock{
+			if psMsg.Identifier == ps.Identifier{
+				inVC = true
+			}
+		}
+
+		if !inVC{
+			return false
+		}
+	}
+
+	return true
 }
 
 //TLCAckRoutine handles the incoming acks, either by updating the majority counter if
@@ -194,11 +294,11 @@ func (g *Gossiper) HandleTLCMessage(tlcMessage *packet.TLCMessage) {
 //ack *packet.TLCAck is the received ack
 func (g *Gossiper) TLCAckRoutine(ack *packet.TLCAck) {
 	if ack.Destination == g.Name {
-		log.Printf("Ack from %s\n", ack.Origin)
+		//log.Printf("Ack from %s\n", ack.Origin)
 		g.TLCMajority.AddNewAck(ack)
 	} else if ack.HopLimit > 0 {
 
-		log.Printf("%s is hop between %s and %s\n", g.Name, ack.Origin, ack.Destination)
+		//log.Printf("%s is hop between %s and %s\n", g.Name, ack.Origin, ack.Destination)
 
 		ack.HopLimit -= 1
 
@@ -210,5 +310,21 @@ func (g *Gossiper) TLCAckRoutine(ack *packet.TLCAck) {
 		}
 		g.DSDV.Mutex.RUnlock()
 
+	}
+}
+
+func (g *Gossiper) TryNextRound() {
+	tm := g.TLCMajority
+	//fmt.Println(len(tm.Confirmed[tm.MyRound]))
+	//fmt.Println(tm.Queue.Size())
+	if len(tm.Confirmed[tm.MyRound]) > tm.Total/2 && tm.Queue.Size() > 0 {
+		tm.MyRound += 1
+		fmt.Println("ADVANCING TO NEXT ROUND ",tm.MyRound)
+		metdata := tm.Queue.Dequeue()
+		if len(tm.Acks[tm.LastID]) <= tm.Total/2{
+			tm.AcksChannels[tm.LastID] <- false
+		}
+
+		g.BroadcastNewFile(metdata)
 	}
 }
