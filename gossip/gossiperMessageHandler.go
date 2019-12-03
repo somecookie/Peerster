@@ -183,7 +183,6 @@ func (g *Gossiper) RumorMessageRoutine(gossipPacket *packet.GossipPacket, peerAd
 		//log.Printf("Old Rumor, Send Status Packet to %s\n", peerAddr)
 		g.sendStatusPacket(peerAddr)
 		g.State.Mutex.Unlock()
-		return
 	}
 	g.State.Mutex.Unlock()
 

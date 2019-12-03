@@ -29,10 +29,15 @@ type TLCMajority struct {
 	MyRound      uint32
 	OtherRounds  map[string]uint32
 	Queue        *fileSharing.MetadataQueue
-	Confirmed    map[uint32][]string
+	Confirmed    map[uint32][]Confirmation
 	FutureMsg    []*packet.TLCMessage
 	LastID       uint32
-	First bool
+	First        bool
+}
+
+type Confirmation struct {
+	Origin string
+	ID     uint32
 }
 
 func TLCMajorityFactory(N int) *TLCMajority {
@@ -42,12 +47,12 @@ func TLCMajorityFactory(N int) *TLCMajority {
 		AcksChannels: make(map[uint32]chan bool),
 		Total:        N,
 		MyRound:      0,
-		OtherRounds: make(map[string]uint32),
+		OtherRounds:  make(map[string]uint32),
 		Queue:        fileSharing.MetadataQueueFactory(),
-		Confirmed:    make(map[uint32][]string),
+		Confirmed:    make(map[uint32][]Confirmation),
 		FutureMsg:    make([]*packet.TLCMessage, 0),
 		LastID:       0,
-		First: true,
+		First:        true,
 	}
 }
 
@@ -202,7 +207,7 @@ func (g *Gossiper) BroadcastNewFile(metadata *fileSharing.Metadata) {
 	g.TLCMajority.SelfAdd(tlcMsg.ID, g.Name)
 	g.State.UpdateGossiperState(gp)
 
-	//log.Println("Mongering new file")
+	packet.PrintUnconfirmedMessage(tlcMsg)
 	g.Rumormongering(gp, false, nil, nil)
 	go g.Stubborn(tlcMsg)
 }
@@ -214,12 +219,10 @@ func (g *Gossiper) HandleTLCMessage(tlcMessage *packet.TLCMessage) {
 	g.TLCMajority.Lock()
 	defer g.TLCMajority.Unlock()
 
-
 	g.TLCMajority.FutureMsg = append(g.TLCMajority.FutureMsg, tlcMessage)
 
 	for _, msg := range g.TLCMajority.FutureMsg {
 		if g.SatisfyVC(msg) {
-			log.Println("RECEIVE TLCMESSAGE ",tlcMessage.ID)
 			g.TLCMajority.RemoveFromFuture(msg)
 			if msg.Confirmed == -1 {
 				packet.PrintUnconfirmedMessage(tlcMessage)
@@ -230,30 +233,33 @@ func (g *Gossiper) HandleTLCMessage(tlcMessage *packet.TLCMessage) {
 					Destination: msg.Origin,
 					HopLimit:    uint32(g.hoplimit),
 				}
-				packet.PrintSendingTLCAck(ack)
 
 				//TODO bouger cette fonction, elle est jamais appelé si en retard
-				if _,ok := g.TLCMajority.OtherRounds[msg.Origin]; !ok{
+				if _, ok := g.TLCMajority.OtherRounds[msg.Origin]; !ok {
 					g.TLCMajority.OtherRounds[msg.Origin] = 1
-				}else{
-					g.TLCMajority.OtherRounds[msg.Origin]+=1
+				} else {
+					g.TLCMajority.OtherRounds[msg.Origin] += 1
 				}
 
-				if round, ok := g.TLCMajority.OtherRounds[tlcMessage.Origin]; !ok{
-					if g.TLCMajority.MyRound != 0{
+				if round, ok := g.TLCMajority.OtherRounds[tlcMessage.Origin]; !ok {
+					if g.TLCMajority.MyRound != 0 {
 						return
 					}
-				}else if round-1 < g.TLCMajority.MyRound{
+				} else if round-1 < g.TLCMajority.MyRound {
 					return
 				}
 
+				packet.PrintSendingTLCAck(ack)
 				g.TLCAckRoutine(ack)
 
 			} else {
 				packet.PrintConfirmedMessage(msg)
-				r := g.TLCMajority.OtherRounds[msg.Origin]-1
+				r := g.TLCMajority.OtherRounds[msg.Origin] - 1
 				//fmt.Println("Its round is ",r)
-				g.TLCMajority.Confirmed[r] = append(g.TLCMajority.Confirmed[r], msg.Origin)
+				g.TLCMajority.Confirmed[r] = append(g.TLCMajority.Confirmed[r], Confirmation{
+					Origin: msg.Origin,
+					ID:     msg.ID,
+				})
 				g.TryNextRound()
 			}
 		}
@@ -273,15 +279,15 @@ func (g *Gossiper) SatisfyVC(msg *packet.TLCMessage) bool {
 		}
 	}
 
-	for _,psMsg := range msg.VectorClock.Want{
+	for _, psMsg := range msg.VectorClock.Want {
 		inVC := false
-		for _,ps := range g.State.VectorClock{
-			if psMsg.Identifier == ps.Identifier{
+		for _, ps := range g.State.VectorClock {
+			if psMsg.Identifier == ps.Identifier {
 				inVC = true
 			}
 		}
 
-		if !inVC{
+		if !inVC {
 			return false
 		}
 	}
@@ -315,16 +321,27 @@ func (g *Gossiper) TLCAckRoutine(ack *packet.TLCAck) {
 
 func (g *Gossiper) TryNextRound() {
 	tm := g.TLCMajority
-	//fmt.Println(len(tm.Confirmed[tm.MyRound]))
-	//fmt.Println(tm.Queue.Size())
-	if len(tm.Confirmed[tm.MyRound]) > tm.Total/2 && tm.Queue.Size() > 0 {
+	confirmed := tm.Confirmed[tm.MyRound]
+	if len(confirmed) > tm.Total/2 && tm.Queue.Size() > 0 {
+
 		tm.MyRound += 1
-		fmt.Println("ADVANCING TO NEXT ROUND ",tm.MyRound)
+		PrintNextRound(tm.MyRound, confirmed)
 		metdata := tm.Queue.Dequeue()
-		if len(tm.Acks[tm.LastID]) <= tm.Total/2{
+		if len(tm.Acks[tm.LastID]) <= tm.Total/2 {
 			tm.AcksChannels[tm.LastID] <- false
 		}
 
 		g.BroadcastNewFile(metdata)
 	}
+}
+
+func PrintNextRound(nextRound uint32, confirmations []Confirmation){
+	conf:=""
+	//origin1 <origin> ID1 <ID>, origin2 <origin> ID2 <ID>
+	for i,c := range confirmations{
+		conf += fmt.Sprintf(" origin%d %s ID%d %d",i+1,c.Origin, i+1, c.ID)
+	}
+
+	fmt.Printf("ADVANCING TO %d round BASED ON CONFIRMED MESSAGES%s\n", nextRound, conf)
+
 }
