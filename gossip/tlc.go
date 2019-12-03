@@ -32,7 +32,7 @@ type TLCMajority struct {
 	Confirmed    map[uint32][]Confirmation
 	FutureMsg    []*packet.TLCMessage
 	LastID       uint32
-	First        bool
+	ReicvCommand bool
 }
 
 type Confirmation struct {
@@ -52,7 +52,7 @@ func TLCMajorityFactory(N int) *TLCMajority {
 		Confirmed:    make(map[uint32][]Confirmation),
 		FutureMsg:    make([]*packet.TLCMessage, 0),
 		LastID:       0,
-		First:        true,
+		ReicvCommand: false,
 	}
 }
 
@@ -322,16 +322,20 @@ func (g *Gossiper) TLCAckRoutine(ack *packet.TLCAck) {
 func (g *Gossiper) TryNextRound() {
 	tm := g.TLCMajority
 	confirmed := tm.Confirmed[tm.MyRound]
-	if len(confirmed) > tm.Total/2 && tm.Queue.Size() > 0 {
+	if len(confirmed) > tm.Total/2 && tm.ReicvCommand{
 
 		tm.MyRound += 1
 		PrintNextRound(tm.MyRound, confirmed)
-		metdata := tm.Queue.Dequeue()
 		if len(tm.Acks[tm.LastID]) <= tm.Total/2 {
 			tm.AcksChannels[tm.LastID] <- false
 		}
 
-		g.BroadcastNewFile(metdata)
+		if metdata := tm.Queue.Dequeue(); metdata != nil{
+			g.BroadcastNewFile(metdata)
+		}else{
+			tm.ReicvCommand = false
+		}
+
 	}
 }
 
