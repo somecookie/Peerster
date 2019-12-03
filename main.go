@@ -17,7 +17,8 @@ var hoplimit int
 var N int
 var stubbornTimeout int
 var ackAll bool
-
+var hw3ex2 bool
+var hw3ex3 bool
 
 func init() {
 	uiPort := flag.String("UIPort", "8080", "port for the UI client (default \"8080\")")
@@ -33,6 +34,8 @@ func init() {
 	flag.IntVar(&stubbornTimeout,"stubbornTimeout", 5, "Time in seconds before a gossiper stubbornly resend a TLCMessage")
 	flag.BoolVar(&runGUI, "runGUI", false, "allow to access a gui from this gossiper")
 	flag.BoolVar(&ackAll, "ackAll", false, "run as in hmw3ex2")
+	flag.BoolVar(&hw3ex2, "hw3ex2", false, "???")
+	flag.BoolVar(&hw3ex3, "hw3ex3", false, "???")
 	flag.Parse()
 	handleFlags(*peersStr, *gossipAddr, *uiPort, *name, *simple)
 

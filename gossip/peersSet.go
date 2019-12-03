@@ -125,6 +125,6 @@ func (ps PeersSet) PeersAsStringList() []string {
 }
 
 func PrintPeers(g *Gossiper) {
-	//fmt.Printf("PEERS %s\n", g.Peers.String())
+	fmt.Printf("PEERS %s\n", g.Peers.String())
 }
 

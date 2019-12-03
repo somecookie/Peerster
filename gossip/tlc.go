@@ -278,7 +278,6 @@ func (g *Gossiper) HandleTLCMessage(tlcMessage *packet.TLCMessage) {
 			} else {
 				packet.PrintConfirmedMessage(msg)
 				r := g.TLCMajority.OtherRounds[msg.Origin] - 1
-				//fmt.Println("Its round is ",r)
 				g.TLCMajority.Confirmed[r] = append(g.TLCMajority.Confirmed[r], Confirmation{
 					Origin: msg.Origin,
 					ID:     msg.ID,

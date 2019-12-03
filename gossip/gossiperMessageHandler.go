@@ -78,7 +78,6 @@ func (g *Gossiper) DataReplyRoutine(dataReply *packet.DataReply) {
 //It either discards the packet when the hop-limit is 0,
 //or if the destination is the gossiper, process the packet.
 func (g *Gossiper) DataRequestRoutine(dataRequest *packet.DataRequest) {
-	//fmt.Println(hex.EncodeToString(dataRequest.HashValue))
 	if dataRequest.Destination == g.Name {
 		g.FilesIndex.Mutex.RLock()
 		chunk := g.FilesIndex.FindChunkFromHash(hex.EncodeToString(dataRequest.HashValue))

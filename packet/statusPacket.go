@@ -24,13 +24,13 @@ func PrintStatusPacket(packet *StatusPacket, peerAddr *net.UDPAddr) {
 		//peer %s nextID %d
 		s += fmt.Sprintf(" peer %s nextID %d", peerStatus.Identifier, peerStatus.NextID)
 	}
-	//fmt.Println(s)
+	fmt.Println(s)
 }
 
 func PrintInSync(peerAddr *net.UDPAddr) {
-	//fmt.Printf("IN SYNC WITH %s\n", peerAddr.String())
+	fmt.Printf("IN SYNC WITH %s\n", peerAddr.String())
 }
 
 func PrintFlippedCoin(peerAddr *net.UDPAddr) {
-	//fmt.Printf("FLIPPED COIN sending rumor to %s\n", peerAddr.String())
+	fmt.Printf("FLIPPED COIN sending rumor to %s\n", peerAddr.String())
 }

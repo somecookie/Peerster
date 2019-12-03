@@ -1,6 +1,7 @@
 package packet
 
 import (
+	"fmt"
 	"github.com/dedis/protobuf"
 	"github.com/somecookie/Peerster/helper"
 )
@@ -27,9 +28,9 @@ func GetMessage(buffer []byte, n int) (*Message, error) {
 
 func PrintClientMessage(message *Message) {
 	if message.Destination == nil {
-		//fmt.Printf("CLIENT MESSAGE %s\n", message.Text)
+		fmt.Printf("CLIENT MESSAGE %s\n", message.Text)
 	} else {
-		//fmt.Printf("CLIENT MESSAGE %s dest %s\n", message.Text, *message.Destination)
+		fmt.Printf("CLIENT MESSAGE %s dest %s\n", message.Text, *message.Destination)
 	}
 
 }
