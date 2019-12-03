@@ -2,7 +2,6 @@ package routing
 
 import (
 	"fmt"
-	"github.com/somecookie/Peerster/packet"
 	"net"
 	"sync"
 )
@@ -34,18 +33,18 @@ func (dsdv *DSDV) Contains(origin string) bool{
 }
 
 //Update updates the next-hop table and the destination sequence number.
-//rumorMessage is the newly arrived rumorMessage.
+//id is the ID of the newly arrived rumorMessage or TLCMessage.
+//origin is the origin of the newly arrived rumorMessage or TLCMessage.
+//text is the content of the rumorMessage
 //from is the address from which the rumor message arrived.
-func (dsdv *DSDV) Update(rumorMessage *packet.RumorMessage, from *net.UDPAddr){
-	origin := rumorMessage.Origin
-	id := rumorMessage.ID
+func (dsdv *DSDV) Update(id uint32, origin, text string, from *net.UDPAddr){
 	_, ok := dsdv.NextHop[origin]
 
 	if !ok{
 		dsdv.NextHop[origin] = from
 		dsdv.DstSeq[origin] = id
 
-		if rumorMessage.Text != ""{
+		if text != ""{
 			PrintUpdateDSVD(origin, from)
 		}
 
@@ -55,7 +54,7 @@ func (dsdv *DSDV) Update(rumorMessage *packet.RumorMessage, from *net.UDPAddr){
 			dsdv.DstSeq[origin] = id
 			dsdv.NextHop[origin] = from
 
-			if rumorMessage.Text != ""{
+			if text != ""{
 				PrintUpdateDSVD(origin, from)
 			}
 		}

@@ -19,12 +19,14 @@ type PendingACK struct {
 	Mutex sync.RWMutex
 }
 
-//WaitForAck waits for the acknowledgment. It timeouts after 10 seconds.
-func (g *Gossiper) WaitForAck(message *packet.RumorMessage, peerAddr *net.UDPAddr) {
 
+//WaitForAck waits for the acknowledgment. It timeouts after 10 seconds.
+func (g *Gossiper) WaitForAck(message *packet.GossipPacket, peerAddr *net.UDPAddr) {
+
+	origin, id := message.GetOriginAndID()
 
 	g.pendingACK.Mutex.Lock()
-	ackChannel:=g.AddToPendingACK(message, peerAddr)
+	ackChannel:=g.AddToPendingACK(origin, id ,peerAddr)
 	g.pendingACK.Mutex.Unlock()
 
 	if ackChannel == nil{
@@ -40,7 +42,6 @@ func (g *Gossiper) WaitForAck(message *packet.RumorMessage, peerAddr *net.UDPAdd
 		g.pendingACK.Mutex.Lock()
 		g.RemoveACKed(message, peerAddr)
 		g.pendingACK.Mutex.Unlock()
-
 		g.Rumormongering(message, false, nil, nil)
 
 	case sp := <-ackChannel:
@@ -53,11 +54,11 @@ func (g *Gossiper) WaitForAck(message *packet.RumorMessage, peerAddr *net.UDPAdd
 }
 
 //AddToPendingACK adds the ack to the List of pending acknowledgment
-func (g *Gossiper) AddToPendingACK(rumor *packet.RumorMessage, peerAddr *net.UDPAddr) chan *packet.StatusPacket {
+func (g *Gossiper) AddToPendingACK(origin string, ID uint32, peerAddr *net.UDPAddr) chan *packet.StatusPacket {
 	new := false
 	ack := ACK{
-		Origin: rumor.Origin,
-		ID:     rumor.ID,
+		Origin: origin,
+		ID:     ID,
 	}
 	if _, ok := g.pendingACK.ACKS[peerAddr.String()]; !ok{
 		g.pendingACK.ACKS[peerAddr.String()] = make(map[ACK]chan *packet.StatusPacket)
@@ -79,10 +80,11 @@ func (g *Gossiper) AddToPendingACK(rumor *packet.RumorMessage, peerAddr *net.UDP
 
 }
 
-func (g *Gossiper) RemoveACKed(message *packet.RumorMessage, peerAddr *net.UDPAddr) {
+func (g *Gossiper) RemoveACKed(message *packet.GossipPacket, peerAddr *net.UDPAddr) {
+	origin, id := message.GetOriginAndID()
 	ack := ACK{
-		Origin: message.Origin,
-		ID:     message.ID,
+		Origin: origin,
+		ID:     id,
 	}
 
 	if c, ok:= g.pendingACK.ACKS[peerAddr.String()][ack]; ok{
@@ -108,7 +110,7 @@ func (g *Gossiper) AckRumors(peerAddr *net.UDPAddr, statusPacket *packet.StatusP
 }
 
 //HasOther checks if there are messages in thisVC that are not in thatVC.
-func (g *Gossiper) HasOther(thisVC, thatVC []packet.PeerStatus) (bool, *packet.RumorMessage) {
+func (g *Gossiper) HasOther(thisVC, thatVC []packet.PeerStatus) (bool, *packet.GossipPacket) {
 	for _, sVC := range thisVC {
 		inOtherVC := false
 		for _, rVC := range thatVC {

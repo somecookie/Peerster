@@ -19,27 +19,22 @@ func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, from
 			go g.SimpleMessageRoutine(receivedPacket.Simple, from)
 		}
 	} else {
-		if receivedPacket.Rumor != nil {
-			go g.RumorMessageRoutine(receivedPacket.Rumor, from)
+		if receivedPacket.Rumor != nil || receivedPacket.TLCMessage != nil{
+			go g.RumorMessageRoutine(receivedPacket, from)
 		} else if receivedPacket.Status != nil {
 			go g.StatusPacketRoutine(receivedPacket.Status, from)
 		} else if receivedPacket.Private != nil {
 			go g.PrivateMessageRoutine(receivedPacket.Private)
 		} else if receivedPacket.DataRequest != nil {
-			/*fmt.Printf("DATA REQUEST from %s with origin %s and destination %s with hashvalue %s\n",
-			from, receivedPacket.DataRequest.Origin, receivedPacket.DataRequest.Destination,
-			hex.EncodeToString(receivedPacket.DataRequest.HashValue))*/
 			go g.DataRequestRoutine(receivedPacket.DataRequest)
 		} else if receivedPacket.DataReply != nil {
-			/*fmt.Printf("DATA REPLY from %s with origin %s and destination %s with hashvalue %s and %d bytes\n",
-				from, receivedPacket.DataReply.Origin, receivedPacket.DataReply.Destination,
-				hex.EncodeToString(receivedPacket.DataReply.HashValue), len(receivedPacket.DataReply.Data))*/
 			go g.DataReplyRoutine(receivedPacket.DataReply)
 		} else if receivedPacket.SearchRequest != nil {
-			fmt.Printf("SEARCH REQUEST from %s with origin %s and budget %d\n", from, receivedPacket.SearchRequest.Origin, receivedPacket.SearchRequest.Budget)
-			go g.SearchRequestRoutine(receivedPacket.SearchRequest, from)
+			g.SearchRequestRoutine(receivedPacket.SearchRequest, from)
 		} else if receivedPacket.SearchReply != nil {
-			go g.SearchReplyRoutine(receivedPacket.SearchReply)
+			g.SearchReplyRoutine(receivedPacket.SearchReply)
+		}else if receivedPacket.Ack != nil{
+			go g.TLCAckRoutine(receivedPacket.Ack)
 		}
 	}
 
@@ -83,7 +78,6 @@ func (g *Gossiper) DataReplyRoutine(dataReply *packet.DataReply) {
 //It either discards the packet when the hop-limit is 0,
 //or if the destination is the gossiper, process the packet.
 func (g *Gossiper) DataRequestRoutine(dataRequest *packet.DataRequest) {
-	//fmt.Println(hex.EncodeToString(dataRequest.HashValue))
 	if dataRequest.Destination == g.Name {
 		g.FilesIndex.Mutex.RLock()
 		chunk := g.FilesIndex.FindChunkFromHash(hex.EncodeToString(dataRequest.HashValue))
@@ -142,29 +136,45 @@ func (g *Gossiper) SimpleMessageRoutine(message *packet.SimpleMessage, peerAddr 
 //RumorMessageRoutine handles the RumorMessage.
 //It first prints the message and g's Peers. Then it sends an ack to the peer that send the rumor.
 //Finally, if it is a new Rumor g starts Rumormongering
-func (g *Gossiper) RumorMessageRoutine(message *packet.RumorMessage, peerAddr *net.UDPAddr) {
-	packet.PrintRumorMessage(message, peerAddr)
+func (g *Gossiper) RumorMessageRoutine(gossipPacket *packet.GossipPacket, peerAddr *net.UDPAddr) {
 
-	g.Peers.Mutex.RLock()
-	PrintPeers(g)
-	g.Peers.Mutex.RUnlock()
+	origin,ID := gossipPacket.GetOriginAndID()
+
+	if ID == 0 && origin == ""{
+		return
+	}
+
+	var text string
+	if gossipPacket.Rumor != nil{
+		packet.PrintRumorMessage(gossipPacket.Rumor, peerAddr)
+		g.Peers.Mutex.RLock()
+		PrintPeers(g)
+		g.Peers.Mutex.RUnlock()
+		text = gossipPacket.Rumor.Text
+	}else{
+		text = ""
+	}
+
 
 	g.State.Mutex.Lock()
-	if message.ID >= g.GetNextID(message.Origin) && message.Origin != g.Name {
+	if ID >= g.GetNextID(origin) && origin!= g.Name {
 
 		g.DSDV.Mutex.Lock()
-		g.DSDV.Update(message, peerAddr)
+		g.DSDV.Update(ID, origin,text, peerAddr)
 		g.DSDV.Mutex.Unlock()
 
-		g.State.UpdateGossiperState(message)
+		g.State.UpdateGossiperState(gossipPacket)
 		g.sendStatusPacket(peerAddr)
-		g.State.Mutex.Unlock()
 
-		g.Rumormongering(message, false, peerAddr, nil)
+		g.Rumormongering(gossipPacket, false, peerAddr, nil)
 	} else {
 
 		g.sendStatusPacket(peerAddr)
-		g.State.Mutex.Unlock()
+	}
+	g.State.Mutex.Unlock()
+
+	if gossipPacket.TLCMessage != nil && origin != g.Name{
+		g.HandleTLCMessage(gossipPacket.TLCMessage)
 	}
 
 }
@@ -204,7 +214,7 @@ func (g *Gossiper) StatusPacketRoutine(statusPacket *packet.StatusPacket, peerAd
 
 }
 
-func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr *net.UDPAddr, rumorMessage *packet.RumorMessage) {
+func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr *net.UDPAddr, gossipPacket *packet.GossipPacket) {
 
 	g.State.Mutex.RLock()
 	//Check if S has messages that R has not seen yet
@@ -219,19 +229,19 @@ func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr 
 	b, _ = g.HasOther(peerVector, g.State.VectorClock)
 
 	if b {
-
 		g.sendStatusPacket(peerAddr)
 		g.State.Mutex.RUnlock()
 		return
 	}
 	g.State.Mutex.RUnlock()
 
-	if rumorMessage == nil {
+	if gossipPacket == nil {
 		packet.PrintInSync(peerAddr)
 	}
 
-	if rand.Int()%2 == 0 && rumorMessage != nil {
-		g.Rumormongering(rumorMessage, true, peerAddr, nil)
+	if rand.Int()%2 == 0 && gossipPacket != nil {
+		//log.Println("Mongering flipped coin")
+		g.Rumormongering(gossipPacket, true, peerAddr, nil)
 	}
 }
 
@@ -321,11 +331,12 @@ func (g *Gossiper) startDuplicateTimer(sr *packet.SearchRequest) {
 //that the SearchRequest comes from the client.
 func (g *Gossiper) redistributeBudget(sr *packet.SearchRequest, from *net.UDPAddr) {
 
-	//TODO check if that's correct!
-	remainingBudget := sr.Budget
+	g.Peers.Mutex.RLock()
+	defer g.Peers.Mutex.RUnlock()
+	remainingBudget := sr.Budget - 1
 	nbrPeers := uint64(len(g.Peers.Set))
 	if from != nil {
-		remainingBudget -= 1
+		//remainingBudget -= 1
 		nbrPeers -= 1
 	}
 
@@ -377,21 +388,27 @@ func (g *Gossiper) redistributeBudget(sr *packet.SearchRequest, from *net.UDPAdd
 
 func (g *Gossiper) SearchReplyRoutine(reply *packet.SearchReply) {
 	g.fullMatches.Lock()
-	if reply.Destination == g.Name && g.fullMatches.n < THRESHOLD_MATCHES {
-		for _, result := range reply.Results{
+	if reply.Destination == g.Name{
+		if  g.fullMatches.n < THRESHOLD_MATCHES {
+			for _, result := range reply.Results {
 
-			newResult := g.Matches.AddNewResult(result,reply.Origin)
+				if len(result.ChunkMap) == 0{
+					continue
+				}
 
-			if newResult{
-				packet.PrintSearchResult(result, reply.Origin)
-			}
+				newResult := g.Matches.AddNewResult(result, reply.Origin)
 
-			if newResult && result.ChunkCount == uint64(len(result.ChunkMap)){
-				g.fullMatches.n += 1
-				if g.fullMatches.n == THRESHOLD_MATCHES {
-					fmt.Println("SEARCH FINISHED")
-					g.fullMatches.Unlock()
-					return
+				if newResult {
+					packet.PrintSearchResult(result, reply.Origin)
+				}
+
+				if newResult && result.ChunkCount == uint64(len(result.ChunkMap)) {
+					g.fullMatches.n += 1
+					if g.fullMatches.n == THRESHOLD_MATCHES {
+						fmt.Println("SEARCH FINISHED")
+						g.fullMatches.Unlock()
+						return
+					}
 				}
 			}
 		}

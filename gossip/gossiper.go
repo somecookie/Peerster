@@ -13,27 +13,31 @@ import (
 )
 
 type Gossiper struct {
-	GossipAddr  string
-	Name        string
-	Peers       PeersSet
-	simple      bool
-	connClient  *net.UDPConn
-	connGossip  *net.UDPConn
-	State       *GossiperState
-	pendingACK  PendingACK
-	counter     uint32
-	antiEntropy time.Duration
-	rtimer      time.Duration
-	DSDV        *routing.DSDV
-	FilesIndex  *fileSharing.FilesIndex
-	Requested   *fileSharing.DownloadState
-	DSR         *packet.DuplicateSearchRequest
-	fullMatches *FullMatchCounter
-	Matches     *Matches
+	GossipAddr      string
+	Name            string
+	Peers           PeersSet
+	simple          bool
+	connClient      *net.UDPConn
+	connGossip      *net.UDPConn
+	State           *GossiperState
+	pendingACK      PendingACK
+	counter         uint32
+	antiEntropy     time.Duration
+	rtimer          time.Duration
+	DSDV            *routing.DSDV
+	FilesIndex      *fileSharing.FilesIndex
+	Requested       *fileSharing.DownloadState
+	DSR             *packet.DuplicateSearchRequest
+	fullMatches     *FullMatchCounter
+	Matches         *Matches
+	hoplimit        int
+	TLCMajority     *TLCMajority
+	stubbornTimeout int
+	ackAll          bool
 }
 
 //GossiperFactory creates a Gossiper from the parsed flags of main.go.
-func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simple bool, antiEntropy int, rtimer int) (*Gossiper, error) {
+func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simple, ackAll bool, antiEntropy, rtimer, hoplimit, N, stubbornTimeout int) (*Gossiper, error) {
 
 	ipPort := strings.Split(gossipAddr, ":")
 	if len(ipPort) != 2 {
@@ -96,10 +100,14 @@ func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simp
 		Requested:   fileSharing.DownloadStateFactory(),
 		DSR:         packet.DSRFactory(),
 		fullMatches: &FullMatchCounter{
-			Mutex:       sync.Mutex{},
-			n: 0,
+			Mutex: sync.Mutex{},
+			n:     0,
 		},
-		Matches:MatchesFactory(),
+		Matches:         MatchesFactory(),
+		hoplimit:        hoplimit,
+		TLCMajority:     TLCMajorityFactory(N),
+		stubbornTimeout: stubbornTimeout,
+		ackAll:           ackAll,
 	}, nil
 }
 
@@ -172,7 +180,7 @@ func (g *Gossiper) GetNextID(origin string) uint32 {
 //flipped coin tells if the rumor mongering was triggered by a coin flip
 //pasAddr is the address of the node that sent us the message
 //dstAddr is used when we want to send the rumor message to a given address
-func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool, pastAddr *net.UDPAddr, dstAddr *net.UDPAddr) {
+func (g *Gossiper) Rumormongering(message *packet.GossipPacket, flippedCoin bool, pastAddr *net.UDPAddr, dstAddr *net.UDPAddr) {
 
 	g.Peers.Mutex.RLock()
 	nbrPeers := len(g.Peers.Set)
@@ -184,7 +192,7 @@ func (g *Gossiper) Rumormongering(message *packet.RumorMessage, flippedCoin bool
 	peerAddr := g.SelectNewPeer(dstAddr, pastAddr)
 	g.Peers.Mutex.RUnlock()
 
-	g.sendMessage(&packet.GossipPacket{Rumor: message}, peerAddr)
+	g.sendMessage(message, peerAddr)
 
 	if flippedCoin {
 		packet.PrintFlippedCoin(peerAddr)
@@ -246,6 +254,7 @@ func (g *Gossiper) RouteRumorRoutine() {
 		select {
 		case <-ticker.C:
 			routeRumorMessage := g.createNewRouteRumor()
+
 			g.Rumormongering(routeRumorMessage, false, nil, nil)
 		}
 	}
@@ -253,13 +262,16 @@ func (g *Gossiper) RouteRumorRoutine() {
 }
 
 //createNewRouteRumor creates a new route rumor message
-func (g *Gossiper) createNewRouteRumor() *packet.RumorMessage {
+func (g *Gossiper) createNewRouteRumor() *packet.GossipPacket {
 	atomic.AddUint32(&g.counter, 1)
 	routeRumorMessage := &packet.RumorMessage{
 		Origin: g.Name,
 		ID:     g.counter,
 		Text:   "",
 	}
-	g.State.UpdateGossiperState(routeRumorMessage)
-	return routeRumorMessage
+
+	gp := &packet.GossipPacket{Rumor: routeRumorMessage}
+
+	g.State.UpdateGossiperState(gp)
+	return gp
 }

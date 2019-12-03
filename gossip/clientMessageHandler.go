@@ -52,7 +52,6 @@ func (g *Gossiper) startSearchRequest(message *packet.Message){
 	g.fullMatches.n = 0
 	g.fullMatches.Unlock()
 
-
 	g.Matches.Clear()
 
 	if message.Budget != nil {
@@ -106,14 +105,15 @@ func (g *Gossiper) startRumor(message *packet.Message) {
 		ID:     g.counter,
 		Text:   message.Text,
 	}
-	g.State.UpdateGossiperState(rumorMessage)
+	gp := &packet.GossipPacket{Rumor:rumorMessage}
+	g.State.UpdateGossiperState(gp)
 
 	g.Peers.Mutex.RLock()
 	length := len(g.Peers.Set)
 	g.Peers.Mutex.RUnlock()
 
 	if length > 0 {
-		g.Rumormongering(rumorMessage, false, nil, nil)
+		g.Rumormongering(gp, false, nil, nil)
 	}
 }
 

@@ -1,7 +1,6 @@
 package gossip
 
 import (
-	"fmt"
 	"github.com/somecookie/Peerster/packet"
 	"sync"
 )
@@ -14,7 +13,7 @@ import (
 //PrivateQueue: maps each origin to a queue of all the private messages with that origin.
 type GossiperState struct {
 	VectorClock      []packet.PeerStatus
-	ArchivedMessages map[string]map[uint32]packet.RumorMessage
+	ArchivedMessages map[string]map[uint32]packet.GossipPacket
 	RumorQueue       []packet.RumorMessage
 	PrivateQueue     map[string][]packet.PrivateMessage
 	Mutex            sync.RWMutex
@@ -24,7 +23,7 @@ type GossiperState struct {
 func GossiperStateFactory() *GossiperState{
 	return &GossiperState{
 		VectorClock:      make([]packet.PeerStatus,0),
-		ArchivedMessages: make(map[string]map[uint32]packet.RumorMessage),
+		ArchivedMessages: make(map[string]map[uint32]packet.GossipPacket),
 		RumorQueue:       make([]packet.RumorMessage,0),
 		PrivateQueue:     make(map[string][]packet.PrivateMessage),
 		Mutex:            sync.RWMutex{},
@@ -33,9 +32,20 @@ func GossiperStateFactory() *GossiperState{
 }
 
 //UpdateGossiperState updates the vector clock and the archives.
-func (gs *GossiperState) UpdateGossiperState(message *packet.RumorMessage) {
-	gs.updateVectorClock(message)
-	gs.updateArchive(message)
+func (gs *GossiperState) UpdateGossiperState(gossipPacket *packet.GossipPacket) {
+	var ID uint32
+	var origin string
+
+	if gossipPacket.Rumor != nil{
+		ID = gossipPacket.Rumor.ID
+		origin = gossipPacket.Rumor.Origin
+	}else{
+		ID = gossipPacket.TLCMessage.ID
+		origin = gossipPacket.TLCMessage.Origin
+	}
+
+	gs.updateVectorClock(origin, ID)
+	gs.updateArchive(origin, ID, gossipPacket)
 
 }
 
@@ -53,12 +63,12 @@ func (gs *GossiperState) UpdatePrivateQueue(destination string, privateMessage *
 
 }
 
-func (gs *GossiperState) updateVectorClock(message *packet.RumorMessage) {
+func (gs *GossiperState) updateVectorClock(origin string, id uint32) {
 	inVC := false
 	for i, peerStat := range gs.VectorClock {
-		if peerStat.Identifier == message.Origin {
+		if peerStat.Identifier == origin{
 			inVC = true
-			if message.ID == peerStat.NextID {
+			if id == peerStat.NextID {
 				gs.VectorClock[i].NextID += 1
 			}
 			return
@@ -67,13 +77,13 @@ func (gs *GossiperState) updateVectorClock(message *packet.RumorMessage) {
 
 	if !inVC {
 		var nextID uint32
-		if message.ID == 1 {
+		if id == 1 {
 			nextID = 2
 		} else {
 			nextID = 1
 		}
 		gs.VectorClock = append(gs.VectorClock, packet.PeerStatus{
-			Identifier: message.Origin,
+			Identifier: origin,
 			NextID:     nextID,
 		})
 	}
@@ -81,21 +91,21 @@ func (gs *GossiperState) updateVectorClock(message *packet.RumorMessage) {
 }
 
 
-func (gs *GossiperState) updateArchive(message *packet.RumorMessage) {
+func (gs *GossiperState) updateArchive(origin string, id uint32, message *packet.GossipPacket) {
 
-	_, ok := gs.ArchivedMessages[message.Origin]
+	_, ok := gs.ArchivedMessages[origin]
 
 	if !ok {
-		gs.ArchivedMessages[message.Origin] = make(map[uint32]packet.RumorMessage)
+		gs.ArchivedMessages[origin] = make(map[uint32]packet.GossipPacket)
 	}
 
-	_, ok = gs.ArchivedMessages[message.Origin][message.ID]
+	_, ok = gs.ArchivedMessages[origin][id]
 
 	if !ok {
-		gs.ArchivedMessages[message.Origin][message.ID] = *message
+		gs.ArchivedMessages[origin][id] = *message
 
-		if message.Text != ""{
-			gs.RumorQueue = append(gs.RumorQueue, *message)
+		if message.Rumor != nil && message.Rumor.Text != ""{
+			gs.RumorQueue = append(gs.RumorQueue, *message.Rumor)
 		}
 	}
 
@@ -103,7 +113,7 @@ func (gs *GossiperState) updateArchive(message *packet.RumorMessage) {
 
 }
 
-func (gs *GossiperState) String() string{
+/*func (gs *GossiperState) String() string{
 	s := "=======================================================================\n"
 	s += "============================Vector Clock===============================\n"
 
@@ -139,5 +149,5 @@ func (gs *GossiperState) String() string{
 	s += "======================================================================="
 
 	return s
-}
+}*/
 
