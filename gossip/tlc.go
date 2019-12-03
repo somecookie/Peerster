@@ -5,7 +5,6 @@ import (
 	"github.com/somecookie/Peerster/blockchain"
 	"github.com/somecookie/Peerster/fileSharing"
 	"github.com/somecookie/Peerster/packet"
-	"log"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -72,7 +71,8 @@ func (tm *TLCMajority) SelfAdd(ID uint32, selfName string) {
 //Notice that the majority can only be reached by one ack, the next ack will simply be discarded.
 //If the majority, the channel associated to the ack allows to stop the stubborn timer and continue the process.
 func (tm *TLCMajority) AddNewAck(ack *packet.TLCAck) bool {
-	if len(tm.Acks[ack.ID]) > tm.Total/2 || ack.ID != tm.LastID {
+
+	if len(tm.Acks[ack.ID]) > tm.Total/2 {
 		return false
 	}
 
@@ -140,7 +140,6 @@ func (g *Gossiper) Stubborn(tlcMessage *packet.TLCMessage) {
 	for {
 		select {
 		case <-ticker.C:
-			//log.Println("Mongering stubborn")
 			g.Rumormongering(&packet.GossipPacket{TLCMessage: tlcMessage}, false, nil, nil)
 		case majority := <-ackChannel:
 			ticker.Stop()
@@ -161,13 +160,18 @@ func (g *Gossiper) Stubborn(tlcMessage *packet.TLCMessage) {
 
 				gp := &packet.GossipPacket{TLCMessage: confirmation}
 				g.State.UpdateGossiperState(gp)
-				//log.Println("Mongering Majority")
 				g.Rumormongering(gp, false, nil, nil)
 
-				g.TLCMajority.Lock()
-				g.TLCMajority.Confirmed[g.TLCMajority.MyRound] = append(g.TLCMajority.Confirmed[g.TLCMajority.MyRound], g.Name)
-				g.TryNextRound()
-				g.TLCMajority.Unlock()
+				if !g.ackAll{
+					g.TLCMajority.Lock()
+					g.TLCMajority.Confirmed[g.TLCMajority.MyRound] = append(g.TLCMajority.Confirmed[g.TLCMajority.MyRound], Confirmation{
+						Origin: g.Name,
+						ID:     confirmation.ID,
+					})
+					g.TryNextRound()
+					g.TLCMajority.Unlock()
+				}
+
 
 			}
 			return
@@ -215,6 +219,26 @@ func (g *Gossiper) BroadcastNewFile(metadata *fileSharing.Metadata) {
 //This function handles the TLCMessage when they are received by the gossiper
 //tlcMessage *packet.TLCMessage is the TLCMessage received by the gossiper
 func (g *Gossiper) HandleTLCMessage(tlcMessage *packet.TLCMessage) {
+
+	if g.ackAll{
+		if tlcMessage.Confirmed == -1 {
+			packet.PrintUnconfirmedMessage(tlcMessage)
+
+			ack := &packet.TLCAck{
+				Origin:      g.Name,
+				ID:          tlcMessage.ID,
+				Destination: tlcMessage.Origin,
+				HopLimit:    uint32(g.hoplimit),
+			}
+			packet.PrintSendingTLCAck(ack)
+			g.TLCAckRoutine(ack)
+
+		} else {
+			packet.PrintConfirmedMessage(tlcMessage)
+		}
+		return
+	}
+
 	//check validity
 	g.TLCMajority.Lock()
 	defer g.TLCMajority.Unlock()
@@ -227,14 +251,6 @@ func (g *Gossiper) HandleTLCMessage(tlcMessage *packet.TLCMessage) {
 			if msg.Confirmed == -1 {
 				packet.PrintUnconfirmedMessage(tlcMessage)
 
-				ack := &packet.TLCAck{
-					Origin:      g.Name,
-					ID:          msg.ID,
-					Destination: msg.Origin,
-					HopLimit:    uint32(g.hoplimit),
-				}
-
-				//TODO bouger cette fonction, elle est jamais appelé si en retard
 				if _, ok := g.TLCMajority.OtherRounds[msg.Origin]; !ok {
 					g.TLCMajority.OtherRounds[msg.Origin] = 1
 				} else {
@@ -247,6 +263,13 @@ func (g *Gossiper) HandleTLCMessage(tlcMessage *packet.TLCMessage) {
 					}
 				} else if round-1 < g.TLCMajority.MyRound {
 					return
+				}
+
+				ack := &packet.TLCAck{
+					Origin:      g.Name,
+					ID:          msg.ID,
+					Destination: msg.Origin,
+					HopLimit:    uint32(g.hoplimit),
 				}
 
 				packet.PrintSendingTLCAck(ack)
@@ -300,12 +323,8 @@ func (g *Gossiper) SatisfyVC(msg *packet.TLCMessage) bool {
 //ack *packet.TLCAck is the received ack
 func (g *Gossiper) TLCAckRoutine(ack *packet.TLCAck) {
 	if ack.Destination == g.Name {
-		//log.Printf("Ack from %s\n", ack.Origin)
 		g.TLCMajority.AddNewAck(ack)
 	} else if ack.HopLimit > 0 {
-
-		//log.Printf("%s is hop between %s and %s\n", g.Name, ack.Origin, ack.Destination)
-
 		ack.HopLimit -= 1
 
 		g.DSDV.Mutex.RLock()
@@ -322,7 +341,7 @@ func (g *Gossiper) TLCAckRoutine(ack *packet.TLCAck) {
 func (g *Gossiper) TryNextRound() {
 	tm := g.TLCMajority
 	confirmed := tm.Confirmed[tm.MyRound]
-	if len(confirmed) > tm.Total/2 && tm.ReicvCommand{
+	if len(confirmed) > tm.Total/2 && tm.ReicvCommand {
 
 		tm.MyRound += 1
 		PrintNextRound(tm.MyRound, confirmed)
@@ -330,20 +349,26 @@ func (g *Gossiper) TryNextRound() {
 			tm.AcksChannels[tm.LastID] <- false
 		}
 
-		if metdata := tm.Queue.Dequeue(); metdata != nil{
+		if metdata := tm.Queue.Dequeue(); metdata != nil {
 			g.BroadcastNewFile(metdata)
-		}else{
+		} else {
 			tm.ReicvCommand = false
 		}
 
 	}
 }
 
-func PrintNextRound(nextRound uint32, confirmations []Confirmation){
-	conf:=""
+func PrintNextRound(nextRound uint32, confirmations []Confirmation) {
+	conf := ""
 	//origin1 <origin> ID1 <ID>, origin2 <origin> ID2 <ID>
-	for i,c := range confirmations{
-		conf += fmt.Sprintf(" origin%d %s ID%d %d",i+1,c.Origin, i+1, c.ID)
+	for i, c := range confirmations {
+		if i < len(confirmations)-1{
+			conf += fmt.Sprintf(" origin%d %s ID%d %d,", i+1, c.Origin, i+1, c.ID)
+
+		}else{
+			conf += fmt.Sprintf(" origin%d %s ID%d %d", i+1, c.Origin, i+1, c.ID)
+
+		}
 	}
 
 	fmt.Printf("ADVANCING TO %d round BASED ON CONFIRMED MESSAGES%s\n", nextRound, conf)

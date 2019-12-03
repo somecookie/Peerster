@@ -48,12 +48,6 @@ func (ms *Matches) Clear(){
 	ms.Lock()
 	defer ms.Unlock()
 
-	/*for m, mi := range ms.matches{
-		if uint64(len(mi.chunkMap)) != mi.chunkCount{
-			delete(ms.matches,m)
-		}
-	}*/
-
 	ms.matches = make(map[match]matchInfo)
 }
 
@@ -81,10 +75,6 @@ func (ms *Matches) AddNewResult(result *packet.SearchResult, origin string) bool
 //addInfo is an helper function that adds the result to the matchInfo
 //It returns whether or not this is a new result
 func (mi matchInfo) addInfo(result *packet.SearchResult, origin string) bool{
-
-	/*if uint64(len(mi.chunkMap)) == mi.chunkCount{
-		return false
-	}*/
 
 	newResult := false
 

@@ -109,7 +109,6 @@ func (g *Gossiper) processReply(dataReply *packet.DataReply,fileName, metaHashSt
 			metadata.LastReceivedChunk = chunkNbr
 		}
 
-		//TODO: réfléchir si besoin de lock modification de metadata
 		if chunkNbr == 0 {
 			metadata.Metafile = make([]byte, 0, len(dataReply.Data))
 			metadata.Metafile = append(metadata.Metafile, dataReply.Data...)
@@ -228,21 +227,10 @@ func (g *Gossiper) IndexFile(fileName string) {
 
 		g.TLCMajority.Lock()
 		defer g.TLCMajority.Unlock()
-		/*if g.TLCMajority.First{
-			g.TLCMajority.First = false
-			g.TLCMajority.ReicvCommand = true
+
+		if g.ackAll{
 			g.BroadcastNewFile(metadata)
-			//TODO: voir si ça marche?
-			g.TryNextRound()
-
-		}else{
-
-			g.TLCMajority.Queue.Enqueue(metadata)
-			g.TryNextRound()
-
-		}*/
-
-		if !g.TLCMajority.ReicvCommand{
+		}else if !g.TLCMajority.ReicvCommand{
 			g.TLCMajority.ReicvCommand = true
 			g.BroadcastNewFile(metadata)
 			g.TryNextRound()

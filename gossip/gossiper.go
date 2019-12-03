@@ -33,11 +33,11 @@ type Gossiper struct {
 	hoplimit        int
 	TLCMajority     *TLCMajority
 	stubbornTimeout int
-	round           uint32
+	ackAll          bool
 }
 
 //GossiperFactory creates a Gossiper from the parsed flags of main.go.
-func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simple bool, antiEntropy, rtimer, hoplimit, N, stubbornTimeout int) (*Gossiper, error) {
+func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simple, ackAll bool, antiEntropy, rtimer, hoplimit, N, stubbornTimeout int) (*Gossiper, error) {
 
 	ipPort := strings.Split(gossipAddr, ":")
 	if len(ipPort) != 2 {
@@ -107,7 +107,7 @@ func GossiperFactory(gossipAddr, uiPort, name string, peers []*net.UDPAddr, simp
 		hoplimit:        hoplimit,
 		TLCMajority:     TLCMajorityFactory(N),
 		stubbornTimeout: stubbornTimeout,
-		round: 0,
+		ackAll:           ackAll,
 	}, nil
 }
 

@@ -26,17 +26,10 @@ func (g *Gossiper) GossipPacketHandler(receivedPacket *packet.GossipPacket, from
 		} else if receivedPacket.Private != nil {
 			go g.PrivateMessageRoutine(receivedPacket.Private)
 		} else if receivedPacket.DataRequest != nil {
-			/*fmt.Printf("DATA REQUEST from %s with origin %s and destination %s with hashvalue %s\n",
-			from, receivedPacket.DataRequest.Origin, receivedPacket.DataRequest.Destination,
-			hex.EncodeToString(receivedPacket.DataRequest.HashValue))*/
 			go g.DataRequestRoutine(receivedPacket.DataRequest)
 		} else if receivedPacket.DataReply != nil {
-			/*fmt.Printf("DATA REPLY from %s with origin %s and destination %s with hashvalue %s and %d bytes\n",
-				from, receivedPacket.DataReply.Origin, receivedPacket.DataReply.Destination,
-				hex.EncodeToString(receivedPacket.DataReply.HashValue), len(receivedPacket.DataReply.Data))*/
 			go g.DataReplyRoutine(receivedPacket.DataReply)
 		} else if receivedPacket.SearchRequest != nil {
-			//fmt.Printf("SEARCH REQUEST from %s with origin %s and budget %d\n", from, receivedPacket.SearchRequest.Origin, receivedPacket.SearchRequest.Budget)
 			g.SearchRequestRoutine(receivedPacket.SearchRequest, from)
 		} else if receivedPacket.SearchReply != nil {
 			g.SearchReplyRoutine(receivedPacket.SearchReply)
@@ -161,7 +154,6 @@ func (g *Gossiper) RumorMessageRoutine(gossipPacket *packet.GossipPacket, peerAd
 		text = gossipPacket.Rumor.Text
 	}else{
 		text = ""
-		//log.Printf("Recceived TLCMessage origin %s ID %d\n", origin, ID)
 	}
 
 
@@ -173,16 +165,12 @@ func (g *Gossiper) RumorMessageRoutine(gossipPacket *packet.GossipPacket, peerAd
 		g.DSDV.Mutex.Unlock()
 
 		g.State.UpdateGossiperState(gossipPacket)
-		//log.Printf("New Rumor, Send Status Packet to %s\n", peerAddr)
 		g.sendStatusPacket(peerAddr)
 
-		//log.Printf("New Rumor, Mongering\n")
 		g.Rumormongering(gossipPacket, false, peerAddr, nil)
 	} else {
 
-		//log.Printf("Old Rumor, Send Status Packet to %s\n", peerAddr)
 		g.sendStatusPacket(peerAddr)
-		g.State.Mutex.Unlock()
 	}
 	g.State.Mutex.Unlock()
 
@@ -235,7 +223,6 @@ func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr 
 
 	if b {
 		g.State.Mutex.RUnlock()
-		//log.Println("Mongering missing packets")
 		g.Rumormongering(msg, false, nil, peerAddr)
 		return
 	}
@@ -243,7 +230,6 @@ func (g *Gossiper) StatusPacketHandler(peerVector []packet.PeerStatus, peerAddr 
 	b, _ = g.HasOther(peerVector, g.State.VectorClock)
 
 	if b {
-
 		g.sendStatusPacket(peerAddr)
 		g.State.Mutex.RUnlock()
 		return
