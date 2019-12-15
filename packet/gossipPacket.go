@@ -5,6 +5,7 @@ import (
 	"github.com/somecookie/Peerster/helper"
 )
 
+
 //GossipPacket is the only type of message sent between the different nodes
 //In a GossipPack, one and only one field should be non-nil
 type GossipPacket struct {

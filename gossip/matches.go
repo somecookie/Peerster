@@ -34,17 +34,27 @@ type matchInfo struct {
 type Matches struct {
 	sync.RWMutex
 	matches map[match]matchInfo
+	Queue   []struct {
+		FileName string
+		Origin   string
+		MetaHash string
+	}
 }
 
-func MatchesFactory() *Matches{
+func MatchesFactory() *Matches {
 	return &Matches{
 		RWMutex: sync.RWMutex{},
 		matches: make(map[match]matchInfo),
+		Queue: make([]struct {
+			FileName string
+			Origin   string
+			MetaHash string
+		}, 0, 2),
 	}
 }
 
 //Clear removes all matches that are not full matches
-func (ms *Matches) Clear(){
+func (ms *Matches) Clear() {
 	ms.Lock()
 	defer ms.Unlock()
 
@@ -53,7 +63,7 @@ func (ms *Matches) Clear(){
 
 //AddNewResult adds a new result from a given origin to the matches
 //It returns whether or not this is a new result
-func (ms *Matches) AddNewResult(result *packet.SearchResult, origin string) bool{
+func (ms *Matches) AddNewResult(result *packet.SearchResult, origin string) bool {
 	ms.Lock()
 	defer ms.Unlock()
 
@@ -74,28 +84,27 @@ func (ms *Matches) AddNewResult(result *packet.SearchResult, origin string) bool
 
 //addInfo is an helper function that adds the result to the matchInfo
 //It returns whether or not this is a new result
-func (mi matchInfo) addInfo(result *packet.SearchResult, origin string) bool{
+func (mi matchInfo) addInfo(result *packet.SearchResult, origin string) bool {
 
 	newResult := false
 
-	for _,index := range result.ChunkMap{
-		if owners,ok := mi.chunkMap[index]; !ok{
-			mi.chunkMap[index] = make([]string,0)
+	for _, index := range result.ChunkMap {
+		if owners, ok := mi.chunkMap[index]; !ok {
+			mi.chunkMap[index] = make([]string, 0)
 			mi.chunkMap[index] = append(mi.chunkMap[index], origin)
 			newResult = true
-		}else if !isOwner(origin, owners){
+		} else if !isOwner(origin, owners) {
 			newResult = true
 			mi.chunkMap[index] = append(mi.chunkMap[index], origin)
 		}
-
 
 	}
 	return newResult
 }
 
-func isOwner(owner string, owners[]string) bool{
-	for _, ow := range owners{
-		if ow == owner{
+func isOwner(owner string, owners []string) bool {
+	for _, ow := range owners {
+		if ow == owner {
 			return true
 		}
 	}
@@ -103,20 +112,17 @@ func isOwner(owner string, owners[]string) bool{
 	return false
 }
 
-
 //GetOwner retrieves the owner of the chunk indexed by index with the given file name  and metahash
-func (ms *Matches)GetOwners(fileName, metahash string, index uint64) []string{
+func (ms *Matches) GetOwners(fileName, metahash string, index uint64) []string {
 	ms.RLock()
 	defer ms.RUnlock()
 	m := match{
 		FileName: fileName,
 		MetaHash: metahash,
 	}
-	if _,ok := ms.matches[m]; ok{
+	if _, ok := ms.matches[m]; ok {
 		return ms.matches[m].chunkMap[index]
-	}else{
+	} else {
 		return nil
 	}
 }
-
-

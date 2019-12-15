@@ -343,7 +343,10 @@ func (g *Gossiper) TryNextRound() {
 	if len(confirmed) > tm.Total/2 && tm.ReicvCommand {
 
 		tm.MyRound += 1
-		PrintNextRound(tm.MyRound, confirmed)
+		g.PrintNextRound(tm.MyRound, confirmed)
+
+
+
 		if len(tm.Acks[tm.LastID]) <= tm.Total/2 {
 			tm.AcksChannels[tm.LastID] <- false
 		}
@@ -357,7 +360,7 @@ func (g *Gossiper) TryNextRound() {
 	}
 }
 
-func PrintNextRound(nextRound uint32, confirmations []Confirmation) {
+func (g *Gossiper) PrintNextRound(nextRound uint32, confirmations []Confirmation) {
 	conf := ""
 	//origin1 <origin> ID1 <ID>, origin2 <origin> ID2 <ID>
 	for i, c := range confirmations {
@@ -370,6 +373,16 @@ func PrintNextRound(nextRound uint32, confirmations []Confirmation) {
 		}
 	}
 
-	fmt.Printf("ADVANCING TO %d round BASED ON CONFIRMED MESSAGES%s\n", nextRound, conf)
+	s := fmt.Sprintf("ADVANCING TO %d round BASED ON CONFIRMED MESSAGES%s\n", nextRound, conf)
+
+	g.State.Mutex.Lock()
+	g.State.RumorQueue = append(g.State.RumorQueue, packet.GossipPacket{Rumor:&packet.RumorMessage{
+		Origin: g.Name,
+		ID:     0,
+		Text:   s,
+	}})
+	g.State.Mutex.Unlock()
+
+	fmt.Printf(s)
 
 }

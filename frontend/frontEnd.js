@@ -96,6 +96,7 @@ setInterval(() => {
     getMessages()
     getAllNodes()
     getAllOrigins()
+    getMatches()
 }, 1000)
 
 function getMessages() {
@@ -148,6 +149,72 @@ function getAllNodes() {
     })
 }
 
+function getMatches() {
+    $.ajax({
+        type: "GET",
+        url: "http://localhost:8080/matches",
+        dataType: 'json',
+        success: function (data, status) {
+            let list = document.getElementById("search-list")
+
+            while (list.hasChildNodes()) {
+                list.removeChild(list.lastChild)
+            }
+
+            for (let match of data) {
+                fileName = match["FileName"]
+                origin = match["Origin"]
+                metahash = match["MetaHash"]
+                let matchDiv = document.createElement("div")
+                matchDiv.className = "search"
+                matchDiv.onclick = () => download(origin, metahash, fileName)
+
+                let nameP = document.createElement("p")
+                nameP.id = "name"
+                nameP.innerHTML = fileName
+                matchDiv.appendChild(nameP)
+
+                let originP = document.createElement("p")
+                originP.id = "origin"
+                originP.innerHTML = origin
+                matchDiv.appendChild(originP)
+
+                let metahashP = document.createElement("p")
+                metahashP.id = "origin"
+                metahashP.innerHTML = metahash
+                metahashP.hidden = true
+                matchDiv.appendChild(metahashP)
+                
+                list.appendChild(matchDiv)
+            }
+        }
+    })
+}
+
+function buttonClickSearch() {
+    let keywords = document.getElementById("keywords").value.split(",")
+    keywords = keywords.filter(x => x != "")
+        if (keywords.length > 0) {
+        $.ajax({
+            type: "POST",
+            url: "http://localhost:8080/search", 
+            data: {
+                "keywords": keywords.join()
+            },
+            success: () => {
+                console.log(keywords)
+                document.getElementById("keywords").value = ""
+            }, error: (status) => {
+                console.log(status)
+                document.getElementById("keywords").value = ""
+            }
+        })
+    }else{
+        document.getElementById("keywords").value = ""
+    }
+
+}
+
 function buttonClickDownload() {
 
     if (active === "Rumors") {
@@ -157,27 +224,27 @@ function buttonClickDownload() {
 
     let metaHashInput = document.getElementById("newHash")
     let [fileName, metaHash] = metaHashInput.value.split(";")
+    download(active, metaHash, fileName)
+    metaHashInput.value = ""
+
+}
+
+function download(from, metaHash, fileName){
     if (checkValidSha256(metaHash)) {
         $.ajax({
             type: "POST",
             url: "http://localhost:8080/download",
             data: {
                 "metahash": metaHash,
-                "from": active,
+                "from": from,
                 "fileName": fileName
-            },
-            success: () => {
-                metaHashInput.value = ""
-            }, error: (status) => {
+            },error: (status) => {
                 console.log(status)
-                metaHashInput.value = ""
             }
         })
     } else {
         alert("Invalid SHA256")
-        document.getElementById("newHash").value = ""
     }
-
 }
 
 

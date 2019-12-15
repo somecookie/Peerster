@@ -21,13 +21,14 @@ body {
 
 #chat-container {
   display: grid;
-  grid: 'identifer chat-title node-text' 71px
-  'conversation-list new-node node-list' 70px 
-  'conversation-list download node-list' 70px 
-   'conversation-list chat-message-list node-list' 1fr
-   'conversation-list chat-form node-list' 70px
+  grid: 'identifer chat-title node-text search-text' 71px
+  'conversation-list new-node node-list search-list' 70px 
+  'conversation-list download node-list search-list' 70px 
+  'conversation-list new-search node-list search-list' 70px 
+   'conversation-list chat-message-list node-list search-list' 1fr
+   'conversation-list chat-form node-list search-list' 70px
 
-   / 275px 1fr 200px;
+   / 275px 0.8fr 0.2fr 0.5fr;
   min-width: 800px;
   max-width: 90%;
   max-height: 90%;
@@ -85,7 +86,7 @@ body {
   text-overflow: ellipsis;
 }
 
-#chat-titile, #chat-form, #new-node, #download {
+#chat-titile, #chat-form, #new-node, #download, #new-search {
   background: #eee;
 }
 
@@ -183,7 +184,7 @@ body {
   align-items: center;
   padding: 0 20px;
   grid-area: node-text;
-  border-radius: 0 10px 0 0;
+  border-radius: 0 0 0 0;
   box-shadow: 0 1px 3px -1px rgba(0, 0, 0, 0.75);
 }
 
@@ -275,6 +276,85 @@ body {
   font-size: 3.6rem;
   border: none;
   background: none;
+}
+
+#new-search {
+  display: grid;
+  grid: 51px / 32px 2fr;
+  align-content: center;
+  align-items: center;
+  grid-gap: 15px;
+  grid-area: new-search;
+  border-radius: 0 0 10px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.25);
+  padding-left: 20px;
+  padding-right: 22px;
+}
+
+#keywords{
+  outline: none;
+  padding: 15px;
+  border: 2px solid #ddd;
+  color: #330;
+  border-radius: 6px;
+  font-size: 1.8rem;
+}
+
+#searchButton {
+  display: grid;
+  place-content: center center;
+  background: #eee;
+  border-radius: 100%;
+  color: #002c88;
+  text-decoration: none;
+  font-size: 3.6rem;
+  border: none;
+  background: none;
+}
+
+
+#search-text, #search-list {
+  background: #0048aa;
+}
+
+#search-text {
+  display: grid;
+  align-items: center;
+  padding: 0 20px;
+  grid-area: search-text;
+  border-radius: 0 10px 0 0;
+  box-shadow: 0 1px 3px -1px rgba(0, 0, 0, 0.75);
+}
+
+#search-text {
+  display: grid;
+  place-content: center center;
+  color: #eee;
+  font-weight: bold;
+  font-size: 2rem;
+}
+
+#search-list {
+  grid-area: conversation-list;
+  overflow-y: scroll;
+  grid-area: search-list;
+}
+
+.search {
+  outline: none;
+  font-size: 1.8rem;
+  color: #eee;
+  padding: 20px 20px 20px 15px;
+  border-bottom: 1px solid #002c88;
+}
+
+.search.active, .search:hover {
+  background: #002c88;
+  font-weight: bold;
+}
+
+.search:hover {
+  cursor: pointer;
 }
 
 ::-webkit-scrollbar {

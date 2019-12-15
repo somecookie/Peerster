@@ -42,6 +42,10 @@
             <span>Known Nodes</span>
         </div>
         <div id="node-list">
+            <div class="node">127.0.0.1:5002</div>
+            <div class="node">127.0.0.1:5002</div>
+            <div class="node">127.0.0.1:5003</div>
+            <div class="node">127.0.0.1:5004</div>
         </div>
 
         <div id="new-node">
@@ -50,11 +54,31 @@
         </div>
 
         <div id="download">
-                <button id="hashButton">#</button>
-                <input id="newHash" type="text" placeholder="enter file name;metahash">
+            <button id="hashButton">#</button>
+            <input id="newHash" type="text" placeholder="enter file name;metahash">
         </div>
 
+        <div id="new-search">
+            <button id="searchButton">?</button>
+            <input id="keywords" type="text" placeholder="keyword1,keyword2,...">
+        </div>
+
+        <div id=search-text>
+            <span>Search Results</span>
+        </div>
+
+        <div id="search-list">
+            <!-- <div class="search">
+                <p id="name">1ex23.pdf</p>
+                <p id="at">NodeB</p>
+                <p id="metahash" hidden>6af4ef54eab6079ace143abffae586f47f84c038a035b0341fd046c8b17d3342</p>
+            </div> -->
+        </div>
+        
+
+
     </div>
+
 
     <script>
         document.getElementById("addButton").onclick = buttonClickNewNode
@@ -69,6 +93,7 @@
             }
         })
         document.getElementById("hashButton").onclick = buttonClickDownload
+        document.getElementById("searchButton").onclick = buttonClickSearch
     </script>
 </body>
 

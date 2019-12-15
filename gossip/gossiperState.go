@@ -14,7 +14,7 @@ import (
 type GossiperState struct {
 	VectorClock      []packet.PeerStatus
 	ArchivedMessages map[string]map[uint32]packet.GossipPacket
-	RumorQueue       []packet.RumorMessage
+	RumorQueue       []packet.GossipPacket
 	PrivateQueue     map[string][]packet.PrivateMessage
 	Mutex            sync.RWMutex
 }
@@ -24,7 +24,7 @@ func GossiperStateFactory() *GossiperState{
 	return &GossiperState{
 		VectorClock:      make([]packet.PeerStatus,0),
 		ArchivedMessages: make(map[string]map[uint32]packet.GossipPacket),
-		RumorQueue:       make([]packet.RumorMessage,0),
+		RumorQueue:       make([]packet.GossipPacket,0),
 		PrivateQueue:     make(map[string][]packet.PrivateMessage),
 		Mutex:            sync.RWMutex{},
 	}
@@ -104,8 +104,8 @@ func (gs *GossiperState) updateArchive(origin string, id uint32, message *packet
 	if !ok {
 		gs.ArchivedMessages[origin][id] = *message
 
-		if message.Rumor != nil && message.Rumor.Text != ""{
-			gs.RumorQueue = append(gs.RumorQueue, *message.Rumor)
+		if (message.Rumor != nil && message.Rumor.Text != "") || (message.TLCMessage != nil && message.TLCMessage.Confirmed != -1){
+			gs.RumorQueue = append(gs.RumorQueue, *message)
 		}
 	}
 

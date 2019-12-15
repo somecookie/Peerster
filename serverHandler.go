@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"github.com/somecookie/Peerster/helper"
 	"github.com/somecookie/Peerster/packet"
 	"net"
@@ -60,7 +61,26 @@ func rumorMessagesHandler(w http.ResponseWriter, request *http.Request) {
 
 		if name[0] == "Rumors"{
 			g.State.Mutex.RLock()
-			jsonValue, err = json.Marshal(g.State.RumorQueue)
+
+			messages := make([]struct{
+				Origin string
+				Text string
+			},0)
+			for _, msg := range g.State.RumorQueue{
+				if msg.TLCMessage != nil{
+					messages = append(messages, struct {
+						Origin string
+						Text   string
+					}{Origin: msg.TLCMessage.Origin, Text: fmt.Sprintf("%s confirmed", msg.TLCMessage.TxBlock.Transaction.Name)})
+				}else{
+					messages = append(messages, struct {
+						Origin string
+						Text   string
+					}{Origin: msg.Rumor.Origin, Text: msg.Rumor.Text})
+				}
+
+			}
+			jsonValue, err = json.Marshal(messages)
 			g.State.Mutex.RUnlock()
 		}else{
 			g.State.Mutex.RLock()
@@ -179,6 +199,43 @@ func downloadHandler(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 
+func searchHandler(writer http.ResponseWriter, request *http.Request) {
+	enableCors(&writer)
+	switch request.Method {
+	case "POST":
+		if err := request.ParseForm(); err == nil{
+			keywords := request.Form.Get("keywords")
+			message := &packet.Message{Keywords:&keywords}
+			g.StartSearchRequest(message)
+
+		}else{
+			writer.WriteHeader(http.StatusInternalServerError)
+		}
+
+	default:
+		writer.WriteHeader(http.StatusNotFound)
+	}
+}
+func matchesHandler(w http.ResponseWriter, request *http.Request) {
+	enableCors(&w)
+	switch request.Method{
+	case "GET":
+		g.Matches.RLock()
+		matchesAsJSON, err := json.Marshal(g.Matches.Queue)
+		g.Matches.RUnlock()
+		if err == nil {
+			w.WriteHeader(http.StatusOK)
+			w.Write(matchesAsJSON)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	default:
+		w.WriteHeader(http.StatusNotFound)
+
+	}
+}
+
+
 
 
 func enableCors(w *http.ResponseWriter) {
@@ -194,10 +251,16 @@ func HandleServerGUI() {
 	http.HandleFunc("/origin", originHandler)
 	http.HandleFunc("/shareFile", shareFileHandler)
 	http.HandleFunc("/download", downloadHandler)
+	http.HandleFunc("/search", searchHandler)
+	http.HandleFunc("/matches", matchesHandler)
 	for {
 		err := http.ListenAndServe(serverAddr, nil)
 		helper.LogError(err)
 	}
 }
+
+
+
+
 
 
