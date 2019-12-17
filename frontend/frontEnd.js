@@ -167,8 +167,14 @@ function getMatches() {
                 metahash = match["MetaHash"]
                 let matchDiv = document.createElement("div")
                 matchDiv.className = "search"
-                matchDiv.onclick = () => download(origin, metahash, fileName)
-
+                matchDiv.onclick =(function() {
+                    var currentFileName = fileName;
+                    var currentMetaHash = metahash;
+                    var currentOrigin = origin
+                    return function() { 
+                        download(currentOrigin, currentMetaHash, currentFileName)
+                    }
+                })()
                 let nameP = document.createElement("p")
                 nameP.id = "name"
                 nameP.innerHTML = fileName

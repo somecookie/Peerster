@@ -205,6 +205,7 @@ func searchHandler(writer http.ResponseWriter, request *http.Request) {
 	case "POST":
 		if err := request.ParseForm(); err == nil{
 			keywords := request.Form.Get("keywords")
+			fmt.Println(keywords)
 			message := &packet.Message{Keywords:&keywords}
 			g.StartSearchRequest(message)
 

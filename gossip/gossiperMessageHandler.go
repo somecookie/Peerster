@@ -286,7 +286,6 @@ func (g *Gossiper) SearchRequestRoutine(sr *packet.SearchRequest, from *net.UDPA
 			g.FilesIndex.Mutex.RLock()
 			results := g.FilesIndex.FindMatchingFiles(sr.Keywords)
 			g.FilesIndex.Mutex.RUnlock()
-
 			g.DSDV.Mutex.RLock()
 			if len(results) > 0 && g.DSDV.Contains(sr.Origin) {
 				sreply := &packet.SearchReply{
