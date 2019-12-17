@@ -40,12 +40,12 @@ func (g *Gossiper) HandleMessage(message *packet.Message) {
 
 		go g.startDownload(message)
 	} else if message.Destination == nil && message.File == nil && message.Request == nil && message.Text == "" && message.Keywords != nil {
-		go g.startSearchRequest(message)
+		go g.StartSearchRequest(message)
 	}
 }
 
-//startSearchRequest starts a new Search
-func (g *Gossiper) startSearchRequest(message *packet.Message){
+//StartSearchRequest starts a new Search
+func (g *Gossiper) StartSearchRequest(message *packet.Message){
 	keywords := strings.Split(*message.Keywords, ",")
 
 	g.fullMatches.Lock()

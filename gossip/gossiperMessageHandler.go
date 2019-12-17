@@ -286,7 +286,6 @@ func (g *Gossiper) SearchRequestRoutine(sr *packet.SearchRequest, from *net.UDPA
 			g.FilesIndex.Mutex.RLock()
 			results := g.FilesIndex.FindMatchingFiles(sr.Keywords)
 			g.FilesIndex.Mutex.RUnlock()
-
 			g.DSDV.Mutex.RLock()
 			if len(results) > 0 && g.DSDV.Contains(sr.Origin) {
 				sreply := &packet.SearchReply{
@@ -330,9 +329,6 @@ func (g *Gossiper) startDuplicateTimer(sr *packet.SearchRequest) {
 //from *net.UDPAddr is the address of the node from whom we received the SearchRequest. If from is nil, this means
 //that the SearchRequest comes from the client.
 func (g *Gossiper) redistributeBudget(sr *packet.SearchRequest, from *net.UDPAddr) {
-
-	g.Peers.Mutex.RLock()
-	defer g.Peers.Mutex.RUnlock()
 	remainingBudget := sr.Budget - 1
 	nbrPeers := uint64(len(g.Peers.Set))
 	if from != nil {
@@ -403,6 +399,14 @@ func (g *Gossiper) SearchReplyRoutine(reply *packet.SearchReply) {
 				}
 
 				if newResult && result.ChunkCount == uint64(len(result.ChunkMap)) {
+					g.Matches.Lock()
+					g.Matches.Queue = append(g.Matches.Queue, struct {
+						FileName string
+						Origin   string
+						MetaHash string
+					}{FileName: result.FileName, Origin: reply.Origin, MetaHash:hex.EncodeToString(result.MetafileHash)})
+					g.Matches.Unlock()
+
 					g.fullMatches.n += 1
 					if g.fullMatches.n == THRESHOLD_MATCHES {
 						fmt.Println("SEARCH FINISHED")
